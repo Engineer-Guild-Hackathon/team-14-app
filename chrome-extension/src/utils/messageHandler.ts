@@ -222,6 +222,8 @@ export class APIManager {
     });
   }
 
+  // Phase2以降に保留 - 今はやらない
+  /*
   static async getImplementationsByArticle(articleUrl: string, options: { 
     sort?: string; 
     limit?: number; 
@@ -240,6 +242,7 @@ export class APIManager {
       method: 'POST'
     });
   }
+  */
 
   static async createSummitRecord(data: {
     questId: string;

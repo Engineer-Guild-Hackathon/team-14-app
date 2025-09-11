@@ -55,10 +55,11 @@ export class AchievementController {
       // バッジ判定・付与
       const badges = await this.evaluateAndAwardBadges(userId, summitRecord);
 
+      // Phase2以降に保留 - 今はやらない
       // 実装ギャラリーに自動登録（公開の場合）
-      if (isPublic) {
-        await this.createImplementationGalleryEntry(summitRecord, quest);
-      }
+      // if (isPublic) {
+      //   await this.createImplementationGalleryEntry(summitRecord, quest);
+      // }
 
       // ポートフォリオに自動追加（ポートフォリオ対象の場合）
       if (isPortfolio) {
@@ -392,7 +393,9 @@ export class AchievementController {
     return newBadges;
   }
 
+  // Phase2以降に保留 - 今はやらない
   // 内部メソッド：実装ギャラリーエントリー作成
+  /* 
   private async createImplementationGalleryEntry(summitRecord: any, quest: any) {
     const articleHash = Buffer.from(quest.articleUrl).toString('base64');
 
@@ -414,6 +417,7 @@ export class AchievementController {
       }
     });
   }
+  */
 
   // 内部メソッド：ポートフォリオに追加
   private async addToPortfolio(userId: string, summitId: string) {

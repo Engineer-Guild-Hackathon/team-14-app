@@ -79,7 +79,7 @@ PC Client        Chrome Ext
 - `GET /api/portfolio` - ポートフォリオ取得
 - `GET /api/portfolio/public/:userId` - 公開ポートフォリオ
 
-### 実装ギャラリー系（「絶景」ギャラリー）
+### 実装ギャラリー系（「絶景」ギャラリー） **⚠️ Phase2以降に保留 - 今はやらない**
 - `GET /api/gallery/article/:articleHash` - 同記事の実装ギャラリー
 - `GET /api/gallery/featured` - 注目の実装
 - `POST /api/gallery/:id/like` - 実装にいいね

@@ -1,5 +1,7 @@
 # implementation-gallery.model.ts
 
+**⚠️ Phase2以降に保留 - 今はやらない**
+
 ## Prismaスキーマ
 ```prisma
 model Implementation {

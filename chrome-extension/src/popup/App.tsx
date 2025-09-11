@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { MessageHandler, APIManager } from '../utils/messageHandler';
 import CodeArrangement from './components/CodeArrangement';
-import ImplementationGallery from './components/ImplementationGallery';
+// Phase2以降に保留 - 今はやらない
+// import ImplementationGallery from './components/ImplementationGallery';
 import SummitRecordButton from './components/SummitRecordButton';
 
 interface User {
@@ -32,7 +33,7 @@ interface QuestStep {
   isCompleted: boolean;
 }
 
-type ViewState = 'loading' | 'login' | 'projectSelect' | 'questGenerate' | 'questProgress' | 'codeArrangement' | 'implementationGallery';
+type ViewState = 'loading' | 'login' | 'projectSelect' | 'questGenerate' | 'questProgress' | 'codeArrangement'; // | 'implementationGallery' - Phase2以降に保留
 
 function App() {
   const [viewState, setViewState] = useState<ViewState>('loading');
@@ -211,9 +212,10 @@ function App() {
     chrome.tabs.create({ url: `codeclimb://portfolio/${summitId}` });
   };
 
-  const showImplementationGallery = () => {
-    setViewState('implementationGallery');
-  };
+  // Phase2以降に保留 - 今はやらない
+  // const showImplementationGallery = () => {
+  //   setViewState('implementationGallery');
+  // };
 
   if (viewState === 'loading') {
     return (
@@ -465,12 +467,14 @@ function App() {
           >
             新しいクエスト
           </button>
+          {/* Phase2以降に保留 - 今はやらない
           <button
             onClick={showImplementationGallery}
             className="btn-secondary flex-1 text-sm"
           >
             他の実装を見る
           </button>
+          */}
           <button
             onClick={openPCClient}
             className="btn-primary flex-1 text-sm"
@@ -517,6 +521,7 @@ function App() {
     );
   }
 
+  /* Phase2以降に保留 - 今はやらない
   if (viewState === 'implementationGallery' && currentTab?.url) {
     return (
       <div className="p-6 max-w-sm">
@@ -536,6 +541,7 @@ function App() {
       </div>
     );
   }
+  */
 
   return null;
 }

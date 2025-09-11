@@ -1,3 +1,8 @@
+/**
+ * Phase2以降に保留 - 今はやらない
+ * 「絶景」実装ギャラリー機能
+ */
+
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';

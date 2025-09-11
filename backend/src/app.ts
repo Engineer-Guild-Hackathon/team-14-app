@@ -12,7 +12,8 @@ import { classroomRoutes } from './routes/classroom.routes';
 import { teacherRoutes } from './routes/teacher.routes';
 import { analyticsRoutes } from './routes/analytics.routes';
 import { achievementRoutes } from './routes/achievement.routes';
-import { galleryRoutes } from './routes/gallery.routes';
+// Phase2以降に保留 - 今はやらない
+// import { galleryRoutes } from './routes/gallery.routes';
 import { reviewRoutes } from './routes/review.routes';
 
 const app = express();
@@ -62,7 +63,8 @@ app.use('/api/classrooms', classroomRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/achievements', achievementRoutes);
-app.use('/api/gallery', galleryRoutes);
+// Phase2以降に保留 - 今はやらない
+// app.use('/api/gallery', galleryRoutes);
 app.use('/api/reviews', reviewRoutes);
 
 // 404 handler

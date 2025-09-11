@@ -1,3 +1,9 @@
+/**
+ * Phase2以降に保留 - 今はやらない
+ * 「絶景」実装ギャラリー機能のコンポーネント
+ */
+
+/*
 import React, { useState, useEffect } from 'react';
 import { APIManager } from '../../utils/messageHandler';
 
@@ -373,3 +379,4 @@ const ImplementationGallery: React.FC<Props> = ({
 };
 
 export default ImplementationGallery;
+*/

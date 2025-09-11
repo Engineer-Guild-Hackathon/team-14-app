@@ -1,5 +1,7 @@
 # gallery.controller.ts
 
+**⚠️ Phase2以降に保留 - 今はやらない**
+
 ## エンドポイント（「絶景」実装ギャラリー）
 - `GET /api/gallery/article/:articleHash` - 同記事からの実装ギャラリー
 - `GET /api/gallery/featured` - 注目の実装ギャラリー

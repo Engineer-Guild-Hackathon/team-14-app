@@ -1,3 +1,8 @@
+/**
+ * Phase2以降に保留 - 今はやらない
+ * 「絶景」実装ギャラリー機能のルート
+ */
+
 import { Router } from 'express';
 import { GalleryController } from '../controllers/gallery.controller';
 import { authMiddleware } from '../middleware/auth.middleware';

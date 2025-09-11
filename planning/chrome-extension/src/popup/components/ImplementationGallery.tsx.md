@@ -1,5 +1,7 @@
 # ImplementationGallery.tsx
 
+**⚠️ Phase2以降に保留 - 今はやらない**
+
 ## 役割
 「絶景」実装ギャラリー表示
 

@@ -1,9 +1,25 @@
 import OpenAI from 'openai';
 import { logger } from '../utils/logger';
+import { PROMPTS } from '../config/prompts';
+import { 
+  interpolateTemplate, 
+  interpolateFallbackResponse, 
+  validateAndParseOpenAIResponse, 
+  logPromptUsage 
+} from '../utils/promptUtils';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+let openai: OpenAI;
+
+const getOpenAI = () => {
+  if (!openai) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
+    openai = new OpenAI({ apiKey });
+  }
+  return openai;
+};
 
 export interface QuestGenerationInput {
   articleUrl: string;
@@ -30,60 +46,30 @@ export interface GeneratedQuest {
 }
 
 export async function generateQuest(input: QuestGenerationInput): Promise<GeneratedQuest> {
+  const startTime = Date.now();
+  
   try {
-    const prompt = `
-あなたは優秀なプログラミング教育AIです。以下の情報を元に、段階的な学習クエストを生成してください。
+    const variables = {
+      articleUrl: input.articleUrl,
+      implementationGoal: input.implementationGoal,
+      difficulty: input.difficulty,
+      projectName: input.projectContext.name,
+      projectDescription: input.projectContext.description
+    };
 
-【記事URL】: ${input.articleUrl}
-【実装目標】: ${input.implementationGoal}
-【難易度】: ${input.difficulty}
-【プロジェクト名】: ${input.projectContext.name}
-【プロジェクト概要】: ${input.projectContext.description}
+    const systemPrompt = interpolateTemplate(PROMPTS.questGeneration.system, variables);
+    const userPrompt = interpolateTemplate(PROMPTS.questGeneration.user, variables);
 
-以下の条件でクエストを生成してください：
-
-1. **クエスト全体**：
-   - タイトル: 魅力的で学習目標が明確
-   - 説明: 何を学び、何を実装するかを詳細に説明
-
-2. **ステップ構成**（3-5ステップ）：
-   - Step 1: ARRANGE_CODE（コードブロック並べ替えで理解）
-   - Step 2-4: IMPLEMENT_CODE（実際の実装）
-   - Final Step: VERIFY_OUTPUT（動作確認）
-
-3. **各ステップ**：
-   - title: ステップの目標
-   - description: 詳細な手順とヒント
-   - type: ステップタイプ
-   - expectedCode: 期待されるコード（実装ステップのみ）
-   - hints: つまづいた時のヒント（2-3個）
-
-JSON形式で回答してください：
-
-{
-  "title": "クエストタイトル",
-  "description": "クエストの詳細説明",
-  "steps": [
-    {
-      "title": "ステップタイトル",
-      "description": "ステップの詳細説明",
-      "type": "ARRANGE_CODE",
-      "hints": ["ヒント1", "ヒント2"]
-    }
-  ]
-}
-`;
-
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-4',
       messages: [
         {
           role: 'system',
-          content: 'あなたは優秀なプログラミング教育AIです。初心者にも分かりやすく、段階的な学習クエストを生成してください。'
+          content: systemPrompt
         },
         {
           role: 'user',
-          content: prompt
+          content: userPrompt
         }
       ],
       temperature: 0.7,
@@ -96,127 +82,281 @@ JSON形式で回答してください：
       throw new Error('OpenAI response is empty');
     }
 
-    try {
-      const questData = JSON.parse(generatedContent) as GeneratedQuest;
-      
-      if (!questData.title || !questData.description || !questData.steps || questData.steps.length === 0) {
-        throw new Error('Invalid quest structure');
-      }
-
-      logger.info(`Quest generated successfully: ${questData.title}`);
-      return questData;
-    } catch (parseError) {
-      logger.error('Failed to parse OpenAI response:', parseError);
-      
-      return {
-        title: `${input.implementationGoal}を実装しよう`,
-        description: `${input.articleUrl}の記事を参考に、${input.implementationGoal}を実装するクエストです。段階的に実装を進めて、実践的なスキルを身につけましょう。`,
-        steps: [
-          {
-            title: 'コードの理解',
-            description: '記事のサンプルコードを理解し、正しい順序に並べ替えてください。',
-            type: 'ARRANGE_CODE',
-            hints: [
-              '変数の定義から始めましょう',
-              '関数の呼び出し順序を考えてください',
-              '記事の流れに沿って考えてみてください'
-            ]
-          },
-          {
-            title: '基本機能の実装',
-            description: `${input.implementationGoal}の基本機能を実装してください。`,
-            type: 'IMPLEMENT_CODE',
-            expectedCode: '// 実装してください',
-            hints: [
-              '記事のサンプルコードを参考にしてください',
-              'エラーメッセージを確認してください',
-              '一つずつ段階的に実装してください'
-            ]
-          },
-          {
-            title: '動作確認',
-            description: '実装した機能が正しく動作することを確認してください。',
-            type: 'VERIFY_OUTPUT',
-            hints: [
-              'コンソールに結果が表示されるか確認してください',
-              'エラーが発生していないか確認してください',
-              '期待した結果になっているか確認してください'
-            ]
-          }
-        ]
-      };
+    const questData = validateAndParseOpenAIResponse(generatedContent);
+    
+    if (!questData || !questData.title || !questData.description || !questData.steps || questData.steps.length === 0) {
+      logger.warn('Invalid quest structure from OpenAI, using fallback');
+      const fallbackResponse = interpolateFallbackResponse(PROMPTS.questGeneration.fallbackResponse!, variables);
+      logPromptUsage('questGeneration', false, Date.now() - startTime);
+      return fallbackResponse;
     }
+
+    logger.info(`Quest generated successfully: ${questData.title}`);
+    logPromptUsage('questGeneration', true, Date.now() - startTime);
+    return questData;
+
   } catch (error) {
     logger.error('OpenAI quest generation failed:', error);
     
-    return {
-      title: `${input.implementationGoal}を実装しよう`,
-      description: `記事を参考に、${input.implementationGoal}を実装するクエストです。`,
-      steps: [
-        {
-          title: 'コードの理解',
-          description: '記事のコードを理解しましょう',
-          type: 'ARRANGE_CODE',
-          hints: ['記事を読んで理解してください']
-        },
-        {
-          title: '実装',
-          description: '機能を実装してください',
-          type: 'IMPLEMENT_CODE',
-          expectedCode: '// 実装してください',
-          hints: ['記事を参考に実装してください']
-        },
-        {
-          title: '確認',
-          description: '動作を確認してください',
-          type: 'VERIFY_OUTPUT',
-          hints: ['正しく動作するか確認してください']
-        }
-      ]
+    const variables = {
+      articleUrl: input.articleUrl,
+      implementationGoal: input.implementationGoal,
+      difficulty: input.difficulty,
+      projectName: input.projectContext.name,
+      projectDescription: input.projectContext.description
     };
+    
+    const fallbackResponse = interpolateFallbackResponse(PROMPTS.questGeneration.fallbackResponse!, variables);
+    logPromptUsage('questGeneration', false, Date.now() - startTime);
+    return fallbackResponse;
   }
 }
 
-export async function generateCodeFeedback(code: string, expectedCode: string, context: string): Promise<string> {
+export async function generateCodeFeedback(
+  submittedCode: string, 
+  expectedCode: string, 
+  filePath: string
+): Promise<{
+  score: number;
+  feedback: string;
+  improvements: string[];
+  hints: string[];
+  errors: Array<{
+    type: 'syntax' | 'logic' | 'style' | 'missing';
+    line?: number;
+    message: string;
+    suggestion?: string;
+  }>;
+}> {
+  const startTime = Date.now();
+  
   try {
-    const prompt = `
-以下のコードをレビューして、期待されるコードとの違いや改善点をフィードバックしてください。
+    const variables = {
+      submittedCode,
+      expectedCode,
+      filePath
+    };
 
-【コンテキスト】: ${context}
+    const systemPrompt = interpolateTemplate(PROMPTS.codeFeedback.system, variables);
+    const userPrompt = interpolateTemplate(PROMPTS.codeFeedback.user, variables);
 
-【期待されるコード】:
-${expectedCode}
-
-【提出されたコード】:
-${code}
-
-フィードバックは以下の観点で行ってください：
-1. 機能的な正確性
-2. コードの品質
-3. 学習者が理解しやすい改善提案
-
-簡潔で建設的なフィードバックをお願いします。
-`;
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+    const response = await getOpenAI().chat.completions.create({
+      model: 'gpt-4',
       messages: [
         {
           role: 'system',
-          content: 'あなたは親切なプログラミングメンターです。学習者に分かりやすく建設的なフィードバックを提供してください。'
+          content: systemPrompt
         },
         {
           role: 'user',
-          content: prompt
+          content: userPrompt
         }
       ],
       temperature: 0.3,
+      max_tokens: 1000
+    });
+
+    const generatedContent = response.choices[0].message.content;
+    
+    if (!generatedContent) {
+      throw new Error('OpenAI response is empty');
+    }
+
+    const feedbackData = validateAndParseOpenAIResponse(generatedContent);
+    
+    if (!feedbackData || typeof feedbackData.score !== 'number') {
+      logger.warn('Invalid feedback structure from OpenAI, using fallback');
+      logPromptUsage('codeFeedback', false, Date.now() - startTime);
+      return createFallbackFeedback();
+    }
+
+    logPromptUsage('codeFeedback', true, Date.now() - startTime);
+    return {
+      score: feedbackData.score || 0,
+      feedback: feedbackData.feedback || 'コードを確認してください',
+      improvements: feedbackData.improvements || [],
+      hints: feedbackData.hints || [],
+      errors: feedbackData.errors || []
+    };
+
+  } catch (error) {
+    logger.error('Code feedback generation failed:', error);
+    logPromptUsage('codeFeedback', false, Date.now() - startTime);
+    return createFallbackFeedback();
+  }
+}
+
+function createFallbackFeedback() {
+  return {
+    score: 50,
+    feedback: 'コードをよく見直してください。期待されるコードと比較して、違いを見つけてみましょう。',
+    improvements: [
+      '構文エラーがないか確認してください',
+      '変数名や関数名が正しいか確認してください',
+      '実装が要求通りになっているか確認してください'
+    ],
+    hints: [
+      '一行ずつ丁寧にコードを確認してみてください',
+      'エラーメッセージがある場合は、その内容をよく読んでください',
+      '期待されるコードと比較して、足りない部分を見つけてみてください'
+    ],
+    errors: []
+  };
+}
+
+/**
+ * 学習者向けのヒントを生成する
+ */
+export async function generateHint(
+  currentCode: string,
+  errorMessage: string,
+  stepGoal: string,
+  difficulty: string
+): Promise<string[]> {
+  const startTime = Date.now();
+  
+  try {
+    const variables = {
+      currentCode,
+      errorMessage,
+      stepGoal,
+      difficulty
+    };
+
+    const systemPrompt = interpolateTemplate(PROMPTS.hintGeneration.system, variables);
+    const userPrompt = interpolateTemplate(PROMPTS.hintGeneration.user, variables);
+
+    const response = await getOpenAI().chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: userPrompt
+        }
+      ],
+      temperature: 0.5,
       max_tokens: 500
     });
 
-    return response.choices[0].message.content || 'フィードバックの生成に失敗しました。';
+    const generatedContent = response.choices[0].message.content;
+    
+    if (!generatedContent) {
+      throw new Error('OpenAI response is empty');
+    }
+
+    const hintData = validateAndParseOpenAIResponse(generatedContent);
+    
+    if (!hintData || !Array.isArray(hintData.hints)) {
+      logger.warn('Invalid hint structure from OpenAI, using fallback');
+      logPromptUsage('hintGeneration', false, Date.now() - startTime);
+      return createFallbackHints();
+    }
+
+    logPromptUsage('hintGeneration', true, Date.now() - startTime);
+    return hintData.hints;
+
   } catch (error) {
-    logger.error('Code feedback generation failed:', error);
-    return 'コードをよく見直してください。期待されるコードと比較して、違いを見つけてみましょう。';
+    logger.error('Hint generation failed:', error);
+    logPromptUsage('hintGeneration', false, Date.now() - startTime);
+    return createFallbackHints();
   }
+}
+
+function createFallbackHints(): string[] {
+  return [
+    'エラーメッセージをよく読んで、何が問題なのかを理解しましょう',
+    '小さな変更から始めて、段階的に機能を追加してみてください',
+    '似たような実装例を探して、参考にしてみてください'
+  ];
+}
+
+/**
+ * コード並べ替え問題を生成する
+ */
+export async function generateCodeArrangementPuzzle(
+  originalCode: string,
+  learningGoal: string
+): Promise<{
+  title: string;
+  description: string;
+  shuffledBlocks: Array<{
+    id: string;
+    code: string;
+    correctOrder: number;
+  }>;
+  hints: string[];
+}> {
+  const startTime = Date.now();
+  
+  try {
+    const variables = {
+      originalCode,
+      learningGoal
+    };
+
+    const systemPrompt = interpolateTemplate(PROMPTS.codeArrangement.system, variables);
+    const userPrompt = interpolateTemplate(PROMPTS.codeArrangement.user, variables);
+
+    const response = await getOpenAI().chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: userPrompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 1500
+    });
+
+    const generatedContent = response.choices[0].message.content;
+    
+    if (!generatedContent) {
+      throw new Error('OpenAI response is empty');
+    }
+
+    const puzzleData = validateAndParseOpenAIResponse(generatedContent);
+    
+    if (!puzzleData || !puzzleData.shuffledBlocks || !Array.isArray(puzzleData.shuffledBlocks)) {
+      logger.warn('Invalid puzzle structure from OpenAI, using fallback');
+      logPromptUsage('codeArrangement', false, Date.now() - startTime);
+      return createFallbackArrangementPuzzle(originalCode, learningGoal);
+    }
+
+    logPromptUsage('codeArrangement', true, Date.now() - startTime);
+    return puzzleData;
+
+  } catch (error) {
+    logger.error('Code arrangement puzzle generation failed:', error);
+    logPromptUsage('codeArrangement', false, Date.now() - startTime);
+    return createFallbackArrangementPuzzle(originalCode, learningGoal);
+  }
+}
+
+function createFallbackArrangementPuzzle(originalCode: string, learningGoal: string) {
+  const lines = originalCode.split('\n').filter(line => line.trim());
+  const blocks = lines.map((line, index) => ({
+    id: `block${index + 1}`,
+    code: line,
+    correctOrder: index + 1
+  }));
+
+  return {
+    title: `${learningGoal}のコード並べ替え`,
+    description: 'コードブロックを正しい順序に並べ替えて、動作するプログラムを完成させましょう。',
+    shuffledBlocks: blocks,
+    hints: [
+      'プログラムの実行順序を考えてみましょう',
+      '変数の宣言と使用の関係を確認してみてください',
+      '関数の定義と呼び出しの順序を意識してください'
+    ]
+  };
 }
