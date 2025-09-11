@@ -1,0 +1,417 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// === コアエンティティ ===
+model User {
+  id                String                @id @default(uuid())
+  email             String                @unique
+  password          String
+  name              String
+  role              UserRole              @default(STUDENT)
+  avatar            String?
+  bio               String?
+  isActive          Boolean               @default(true)
+  
+  // 基本学習機能
+  projects          Project[]
+  quests            Quest[]
+  progress          Progress[]
+  
+  // 詳細学習追跡
+  codeHistory       CodeHistory[]
+  learningEvents    LearningEvent[]
+  summitRecords     SummitRecord[]
+  badgeAwards       BadgeAward[]
+  
+  // 教育機能
+  teacherClassrooms Classroom[]           @relation("TeacherClassrooms")
+  studentClassrooms ClassroomStudent[]
+  
+  // ソーシャル機能
+  implementations   Implementation[]
+  implLikes         ImplementationLike[]
+  implComments      ImplementationComment[]
+  
+  // レビュー機能
+  reviewRequests    ReviewRequest[]       @relation("ReviewRequests")
+  reviewsGiven      Review[]              @relation("ReviewsGiven")
+  
+  // ポートフォリオ
+  portfolio         Portfolio?
+  
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  localPath   String
+  gitUrl      String?
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  quests      Quest[]
+  codeHistory CodeHistory[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Quest {
+  id              String          @id @default(uuid())
+  title           String
+  description     String
+  articleUrl      String
+  difficulty      Difficulty
+  status          QuestStatus     @default(PENDING)
+  steps           QuestStep[]
+  userId          String
+  projectId       String
+  user            User            @relation(fields: [userId], references: [id])
+  project         Project         @relation(fields: [projectId], references: [id])
+  progress        Progress[]
+  summitRecords   SummitRecord[]
+  codeHistory     CodeHistory[]
+  learningEvents  LearningEvent[]
+  implementations Implementation[]
+  assignments     Assignment[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model QuestStep {
+  id              String            @id @default(uuid())
+  questId         String
+  stepNumber      Int
+  title           String
+  description     String
+  type            QuestStepType
+  expectedCode    String?
+  hints           String[]
+  isCompleted     Boolean           @default(false)
+  quest           Quest             @relation(fields: [questId], references: [id])
+  stepProgress    StepProgress[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([questId, stepNumber])
+}
+
+model Progress {
+  id                String     @id @default(uuid())
+  userId            String
+  questId           String
+  status            QuestStatus
+  completedSteps    Int        @default(0)
+  totalSteps        Int
+  timeSpent         Int        @default(0)
+  hintsUsed         Int        @default(0)
+  errorsEncountered Int        @default(0)
+  startedAt         DateTime?
+  completedAt       DateTime?
+  user              User       @relation(fields: [userId], references: [id])
+  quest             Quest      @relation(fields: [questId], references: [id])
+  stepProgress      StepProgress[]
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@unique([userId, questId])
+}
+
+model StepProgress {
+  id           String     @id @default(uuid())
+  progressId   String
+  stepId       String
+  isCompleted  Boolean    @default(false)
+  attempts     Int        @default(0)
+  timeSpent    Int        @default(0)
+  hintsUsed    Int        @default(0)
+  completedAt  DateTime?
+  progress     Progress   @relation(fields: [progressId], references: [id])
+  step         QuestStep  @relation(fields: [stepId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([progressId, stepId])
+}
+
+// === 教育機能 ===
+model Classroom {
+  id          String             @id @default(uuid())
+  name        String
+  description String?
+  inviteCode  String             @unique
+  teacherId   String
+  teacher     User               @relation("TeacherClassrooms", fields: [teacherId], references: [id])
+  students    ClassroomStudent[]
+  assignments Assignment[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model ClassroomStudent {
+  id          String     @id @default(uuid())
+  classroomId String
+  studentId   String
+  joinedAt    DateTime   @default(now())
+  isActive    Boolean    @default(true)
+  classroom   Classroom  @relation(fields: [classroomId], references: [id])
+  student     User       @relation(fields: [studentId], references: [id])
+
+  @@unique([classroomId, studentId])
+}
+
+model Assignment {
+  id          String     @id @default(uuid())
+  classroomId String
+  questId     String
+  title       String
+  description String?
+  dueDate     DateTime?
+  isActive    Boolean    @default(true)
+  classroom   Classroom  @relation(fields: [classroomId], references: [id])
+  quest       Quest      @relation(fields: [questId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+// === ポートフォリオ・アチーブメント ===
+model SummitRecord {
+  id                String              @id @default(uuid())
+  userId            String
+  questId           String
+  title             String
+  description       String?
+  reflection        String?
+  codeSnapshot      Json
+  beforeCode        Json?
+  implementationTime Int
+  articleUrl        String
+  techStack         String[]
+  isPublic          Boolean             @default(false)
+  isPortfolio       Boolean             @default(false)
+  user              User                @relation(fields: [userId], references: [id])
+  quest             Quest               @relation(fields: [questId], references: [id])
+  badges            BadgeAward[]
+  implementation    Implementation?
+  portfolioEntry    PortfolioEntry?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model Portfolio {
+  id          String           @id @default(uuid())
+  userId      String           @unique
+  title       String
+  description String?
+  isPublic    Boolean          @default(false)
+  user        User             @relation(fields: [userId], references: [id])
+  entries     PortfolioEntry[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model PortfolioEntry {
+  id           String       @id @default(uuid())
+  portfolioId  String
+  summitId     String       @unique
+  order        Int
+  portfolio    Portfolio    @relation(fields: [portfolioId], references: [id])
+  summitRecord SummitRecord @relation(fields: [summitId], references: [id])
+  createdAt    DateTime     @default(now())
+}
+
+// === バッジ・アチーブメント ===
+model Badge {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  description String
+  icon        String
+  condition   String
+  awards      BadgeAward[]
+  createdAt   DateTime     @default(now())
+}
+
+model BadgeAward {
+  id           String       @id @default(uuid())
+  userId       String
+  badgeId      String
+  summitId     String?
+  awardedAt    DateTime     @default(now())
+  user         User         @relation(fields: [userId], references: [id])
+  badge        Badge        @relation(fields: [badgeId], references: [id])
+  summitRecord SummitRecord? @relation(fields: [summitId], references: [id])
+
+  @@unique([userId, badgeId])
+}
+
+// === ソーシャル学習 ===
+model Implementation {
+  id             String                  @id @default(uuid())
+  userId         String
+  questId        String
+  summitId       String                  @unique
+  title          String
+  description    String
+  code           Json
+  approach       String
+  techStack      String[]
+  difficulty     Int
+  implementTime  Int
+  articleUrl     String
+  articleHash    String
+  isAnonymous    Boolean                 @default(false)
+  isPublic       Boolean                 @default(false)
+  user           User                    @relation(fields: [userId], references: [id])
+  quest          Quest                   @relation(fields: [questId], references: [id])
+  summitRecord   SummitRecord            @relation(fields: [summitId], references: [id])
+  likes          ImplementationLike[]
+  comments       ImplementationComment[]
+  reviewRequest  ReviewRequest?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@index([articleHash])
+}
+
+model ImplementationLike {
+  id               String         @id @default(uuid())
+  userId           String
+  implementationId String
+  user             User           @relation(fields: [userId], references: [id])
+  implementation   Implementation @relation(fields: [implementationId], references: [id])
+  createdAt        DateTime       @default(now())
+
+  @@unique([userId, implementationId])
+}
+
+model ImplementationComment {
+  id               String         @id @default(uuid())
+  userId           String
+  implementationId String
+  content          String
+  user             User           @relation(fields: [userId], references: [id])
+  implementation   Implementation @relation(fields: [implementationId], references: [id])
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+// === ピアレビュー機能 ===
+model ReviewRequest {
+  id               String         @id @default(uuid())
+  requesterId      String
+  implementationId String         @unique
+  description      String?
+  status           ReviewStatus   @default(PENDING)
+  requester        User           @relation("ReviewRequests", fields: [requesterId], references: [id])
+  implementation   Implementation @relation(fields: [implementationId], references: [id])
+  reviews          Review[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model Review {
+  id              String        @id @default(uuid())
+  reviewRequestId String
+  reviewerId      String
+  rating          Int
+  content         String
+  isPublic        Boolean       @default(true)
+  reviewRequest   ReviewRequest @relation(fields: [reviewRequestId], references: [id])
+  reviewer        User          @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([reviewRequestId, reviewerId])
+}
+
+// === 学習分析 ===
+model CodeHistory {
+  id         String     @id @default(uuid())
+  userId     String
+  projectId  String
+  questId    String?
+  filePath   String
+  changeType ChangeType
+  beforeCode String?
+  afterCode  String
+  lineNumber Int?
+  timestamp  DateTime   @default(now())
+  user       User       @relation(fields: [userId], references: [id])
+  project    Project    @relation(fields: [projectId], references: [id])
+  quest      Quest?     @relation(fields: [questId], references: [id])
+
+  @@index([userId, projectId])
+  @@index([timestamp])
+}
+
+model LearningEvent {
+  id        String    @id @default(uuid())
+  userId    String
+  questId   String
+  eventType EventType
+  data      Json?
+  timestamp DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id])
+  quest     Quest     @relation(fields: [questId], references: [id])
+
+  @@index([userId, timestamp])
+}
+
+// === Enums ===
+enum UserRole {
+  STUDENT
+  TEACHER
+  MENTOR
+  ADMIN
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuestStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum QuestStepType {
+  ARRANGE_CODE
+  IMPLEMENT_CODE
+  VERIFY_OUTPUT
+}
+
+enum ChangeType {
+  CREATE
+  MODIFY
+  DELETE
+  RENAME
+}
+
+enum EventType {
+  QUEST_START
+  STEP_COMPLETE
+  HINT_REQUEST
+  ERROR_ENCOUNTER
+  ARTICLE_REFERENCE
+  CODE_VERIFY
+  QUEST_COMPLETE
+  BREAK_TAKEN
+}
+
+enum ReviewStatus {
+  PENDING
+  IN_REVIEW
+  COMPLETED
+  CANCELLED
+}

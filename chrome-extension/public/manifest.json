@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "CodeClimb",
+  "version": "1.0.0",
+  "description": "技術記事から学習クエストを生成し、実装をサポートするChrome拡張機能",
+  
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://*/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://qiita.com/*",
+        "https://zenn.dev/*",
+        "https://dev.to/*",
+        "https://medium.com/*",
+        "https://blog.*.com/*",
+        "https://*.blog/*",
+        "https://developer.mozilla.org/*",
+        "https://stackoverflow.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_end"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CodeClimb - 学習クエスト生成",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+
+  "options_page": "options.html",
+
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*", "popup.html", "options.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
