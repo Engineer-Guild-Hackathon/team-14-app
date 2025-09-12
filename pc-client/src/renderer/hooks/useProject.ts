@@ -16,10 +16,10 @@ export const useProject = () => {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { user, token } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   const fetchProjects = async () => {
-    if (!token) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     setError(null);
@@ -41,7 +41,7 @@ export const useProject = () => {
     path?: string;
     language?: string;
   }) => {
-    if (!token) return null;
+    if (!isAuthenticated) return null;
     
     setIsLoading(true);
     setError(null);
@@ -72,7 +72,7 @@ export const useProject = () => {
   };
 
   const deleteProject = async (projectId: string) => {
-    if (!token) return false;
+    if (!isAuthenticated) return false;
     
     setIsLoading(true);
     setError(null);
@@ -95,7 +95,7 @@ export const useProject = () => {
   };
 
   useEffect(() => {
-    if (user && token) {
+    if (user && isAuthenticated) {
       fetchProjects();
       
       // Load active project from localStorage
@@ -111,16 +111,16 @@ export const useProject = () => {
       setProjects([]);
       setActiveProject(null);
     }
-  }, [user, token]);
+  }, [user, isAuthenticated]);
 
   return {
     projects,
     activeProject,
     isLoading,
     error,
-    fetchProjects,
+    refreshProjects: fetchProjects,
     createProject,
-    selectProject,
+    openProject: selectProject,
     deleteProject,
   };
-};
+};;

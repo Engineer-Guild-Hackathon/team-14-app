@@ -70,7 +70,7 @@ class ElectronApp {
       this.mainWindow.loadURL('http://localhost:3001');
       this.mainWindow.webContents.openDevTools();
     } else {
-      this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+      this.mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
     }
 
     this.mainWindow.once('ready-to-show', () => {
