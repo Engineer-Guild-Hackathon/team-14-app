@@ -137,6 +137,19 @@ export async function downloadFile(url: string, filename?: string): Promise<Blob
 
 // Convenience methods for common API calls
 export const api = {
+  // Generic HTTP methods
+  get: (url: string) =>
+    apiRequest({ method: 'GET', url }),
+  
+  post: (url: string, data?: any) =>
+    apiRequest({ method: 'POST', url, data }),
+  
+  put: (url: string, data?: any) =>
+    apiRequest({ method: 'PUT', url, data }),
+  
+  delete: (url: string) =>
+    apiRequest({ method: 'DELETE', url }),
+
   // Auth
   login: (email: string, password: string) => 
     apiRequest({ method: 'POST', url: '/auth/login', data: { email, password } }),
@@ -227,6 +240,13 @@ export const api = {
   
   sendFeedback: (id: string, data: any) =>
     apiRequest({ method: 'POST', url: `/teacher/students/${id}/feedback`, data }),
+
+  // Teacher Classroom Management
+  createClassroom: (data: { name: string; description?: string }) =>
+    apiRequest({ method: 'POST', url: '/teacher/classrooms', data }),
+  
+  createAssignment: (data: any) =>
+    apiRequest({ method: 'POST', url: '/teacher/assignments', data }),
 };
 
 // For backward compatibility with existing code that imports APIClient
