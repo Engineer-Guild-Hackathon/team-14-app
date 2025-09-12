@@ -85,10 +85,10 @@ const TeacherDashboard: React.FC = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/teacher/dashboard');
+      const response = await api.getTeacherDashboard();
       
-      if (response.data.success) {
-        const { classrooms, studentsInNeed, stats, recentProgress } = response.data.data;
+      if (response.success) {
+        const { classrooms, studentsInNeed, stats, recentProgress } = response.data;
         
         setClassrooms(classrooms || []);
         setStudentsInNeed(studentsInNeed || []);
@@ -108,7 +108,7 @@ const TeacherDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  };;
 
   const sendFeedback = async (studentId: string) => {
     try {

@@ -251,14 +251,23 @@ class BackgroundService {
         throw new Error('Authentication required');
       }
 
-      const response = await fetch(`${this.serverUrl}/api/quests/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth.accessToken}`
-        },
-        body: JSON.stringify(data)
-      });
+      // Set up AbortController for fetch timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+      let response;
+      try {
+        response = await fetch(`${this.serverUrl}/api/quests/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${auth.accessToken}`
+          },
+          body: JSON.stringify(data),
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -278,6 +287,12 @@ class BackgroundService {
       return { success: true, quest: result.quest };
     } catch (error) {
       console.error('Quest generation failed:', error);
+      
+      // Handle timeout specifically
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return { success: false, error: 'Request timeout - please try again' };
+      }
+      
       return { success: false, error: (error as Error).message };
     }
   }

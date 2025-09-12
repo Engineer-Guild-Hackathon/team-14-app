@@ -79,7 +79,7 @@ export class FileWatcher {
     this.callback = callback;
     this.config = new ConfigStore();
     this.apiBaseUrl = this.config.get('apiBaseUrl') || 'http://localhost:3000';
-    this.authToken = this.config.get('authToken');
+    this.authToken = this.config.get('authToken') || null;
     this.initializeWebSocket();
   }
 

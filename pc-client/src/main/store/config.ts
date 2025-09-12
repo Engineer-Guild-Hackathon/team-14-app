@@ -40,6 +40,16 @@ export interface AppConfig {
     y?: number;
     maximized: boolean;
   };
+  // Additional configuration keys for FileWatcher
+  apiBaseUrl?: string;
+  authToken?: string;
+  userId?: string;
+  currentProject?: {
+    id: string;
+    name: string;
+    path: string;
+    questId?: string;
+  };
 }
 
 export interface ProjectConfig {

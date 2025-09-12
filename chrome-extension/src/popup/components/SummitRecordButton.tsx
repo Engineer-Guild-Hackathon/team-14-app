@@ -89,16 +89,27 @@ const SummitRecordButton: React.FC<Props> = ({
   const getCodeSnapshot = async (): Promise<any> => {
     try {
       // PCクライアントからプロジェクトのコードを取得
-      const response = await chrome.runtime.sendMessage({
-        type: 'GET_PROJECT_CODE',
-        questId
+      const response = await new Promise<any>((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          {
+            type: 'GET_PROJECT_CODE',
+            questId
+          },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          }
+        );
       });
       return response.code || {};
     } catch (error) {
       console.error('Code snapshot error:', error);
       return {};
     }
-  };
+  };;
 
   const getImplementationTime = async (): Promise<number> => {
     try {

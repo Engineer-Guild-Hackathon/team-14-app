@@ -7,7 +7,7 @@ interface ApiError {
 }
 
 // Base configuration
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+const BASE_URL = process.env.VITE_API_URL || 'http://localhost:3000/api';
 const TIMEOUT = 10000;
 
 // Create axios instance

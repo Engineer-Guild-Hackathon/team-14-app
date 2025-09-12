@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MessageHandler, APIManager } from '../utils/messageHandler';
 import CodeArrangement from './components/CodeArrangement';
-// Phase2以降に保留 - 今はやらない
-// import ImplementationGallery from './components/ImplementationGallery';
+// TODO(Phase2): import ImplementationGallery from './components/ImplementationGallery';
 import SummitRecordButton from './components/SummitRecordButton';
 
 interface User {
