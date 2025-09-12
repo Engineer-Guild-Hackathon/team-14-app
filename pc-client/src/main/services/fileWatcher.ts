@@ -74,13 +74,19 @@ export class FileWatcher {
   private apiBaseUrl: string;
   private authToken: string | null = null;
   private git: Map<string, ReturnType<typeof simpleGit>> = new Map();
+  private mainWindow: Electron.BrowserWindow | null = null;
 
-  constructor(callback: FileChangeCallback) {
+  constructor(callback: FileChangeCallback, mainWindow?: Electron.BrowserWindow) {
     this.callback = callback;
+    this.mainWindow = mainWindow || null;
     this.config = new ConfigStore();
     this.apiBaseUrl = this.config.get('apiBaseUrl') || 'http://localhost:3000';
     this.authToken = this.config.get('authToken') || null;
     this.initializeWebSocket();
+  }
+
+  public setMainWindow(mainWindow: Electron.BrowserWindow): void {
+    this.mainWindow = mainWindow;
   }
 
   public async startWatchingProject(config: ProjectWatchConfig): Promise<void> {
@@ -244,9 +250,13 @@ export class FileWatcher {
   }
 
   private broadcastToRenderer(event: string, data: any): void {
-    // This would be implemented to send data to the renderer process
-    // via IPC or other communication mechanism
-    logger.debug(`Broadcasting to renderer: ${event}`, data);
+    // Send data to the renderer process via IPC
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send(`file-watcher:${event}`, data);
+      logger.debug(`Broadcasting to renderer: ${event}`, data);
+    } else {
+      logger.warn(`Cannot broadcast to renderer: window is not available for event ${event}`);
+    }
   }
 
   private async handleFileEvent(filePath: string, type: FileChange['type'], projectId: string, projectPath: string) {

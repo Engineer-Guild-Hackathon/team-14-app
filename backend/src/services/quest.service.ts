@@ -59,7 +59,7 @@ export async function generateQuest(input: QuestGenerationInput): Promise<Genera
         .replace(/<[^>]*>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
-        .substring(0, 8000); // Limit to prevent token overflow
+        .substring(0, 3000); // Reduce to prevent token overflow
     } catch (error) {
       logger.warn('Failed to fetch article content, using URL only');
       articleContent = `記事URL: ${input.articleUrl}`;
@@ -68,7 +68,7 @@ export async function generateQuest(input: QuestGenerationInput): Promise<Genera
     const prompt = createQuestGenerationPrompt(input, articleContent);
     
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-3.5-turbo',
       messages: [
         {
           role: 'system',

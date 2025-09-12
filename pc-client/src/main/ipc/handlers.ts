@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, dialog } from 'electron';
 import { ConfigStore, ProjectConfig } from '../store/config';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
@@ -213,6 +213,19 @@ export function setupIPCHandlers(mainWindow: BrowserWindow, configStore: ConfigS
 
   ipcMain.handle('socket:isConnected', () => {
     return socketConnection?.connected || false;
+  });
+
+  // Dialog handlers
+  ipcMain.handle('dialog:showOpenDialog', async (_, options: any) => {
+    try {
+      console.log('🔵 [dialog:showOpenDialog] Called with options:', options);
+      const result = await dialog.showOpenDialog(mainWindow, options);
+      console.log('🔵 [dialog:showOpenDialog] Result:', result);
+      return result;
+    } catch (error: any) {
+      console.error('🔵 [dialog:showOpenDialog] Error:', error);
+      return { canceled: true, filePaths: [] };
+    }
   });
 
   // Window handlers

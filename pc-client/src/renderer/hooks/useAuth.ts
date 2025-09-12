@@ -25,10 +25,21 @@ export function useAuth() {
 
   const checkAuthStatus = async () => {
     try {
+      console.log('Checking auth status...');
+      
+      // Check if electronAPI is available
+      if (!window.electronAPI) {
+        console.warn('ElectronAPI not available, running in web mode');
+        setIsLoading(false);
+        return;
+      }
+
       const [storedUser, isAuthValid] = await Promise.all([
         window.electronAPI.user.get(),
         window.electronAPI.auth.isValid()
       ]);
+
+      console.log('Auth check result:', { storedUser, isAuthValid });
 
       if (storedUser && isAuthValid) {
         setUser(storedUser);
@@ -59,7 +70,10 @@ export function useAuth() {
         data: credentials
       });
 
+      console.log('Login response:', response);
+
       if (response.success) {
+        console.log('Login success, response.data:', response.data);
         const { user: userData, tokens } = response.data;
         
         // Store user and auth data
@@ -107,7 +121,10 @@ export function useAuth() {
         data
       });
 
+      console.log('Register response:', response);
+
       if (response.success) {
+        console.log('Register success, response.data:', response.data);
         const { user: userData, tokens } = response.data;
         
         // Store user and auth data

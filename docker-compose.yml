@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: codeclimb-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: codeclimb
+      POSTGRES_USER: codeclimb_user
+      POSTGRES_PASSWORD: codeclimb_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - codeclimb-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codeclimb_user -d codeclimb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (for caching and session management)
+  redis:
+    image: redis:7-alpine
+    container_name: codeclimb-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass redis_password
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - codeclimb-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Backend API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codeclimb-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://codeclimb_user:codeclimb_password@db:5432/codeclimb
+      REDIS_URL: redis://:redis_password@redis:6379
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this}
+      JWT_EXPIRES_IN: 24h
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-change-this}
+      JWT_REFRESH_EXPIRES_IN: 7d
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      FRONTEND_URL: http://localhost:3001
+      CHROME_EXTENSION_ID: ${CHROME_EXTENSION_ID}
+      MAX_FILE_SIZE: 10485760
+      UPLOAD_PATH: /app/uploads
+      WS_CORS_ORIGIN: http://localhost:3001
+    volumes:
+      - backend_uploads:/app/uploads
+    ports:
+      - "3000:3000"
+    networks:
+      - codeclimb-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Database Migration (runs once)
+  db-migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codeclimb-db-migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://codeclimb_user:codeclimb_password@db:5432/codeclimb
+    command: ["sh", "-c", "npx prisma migrate deploy && npx prisma db seed"]
+    networks:
+      - codeclimb-network
+    restart: "no"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_uploads:
+    driver: local
+
+networks:
+  codeclimb-network:
+    driver: bridge

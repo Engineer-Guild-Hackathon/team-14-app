@@ -23,14 +23,25 @@ class ContentScriptManager {
 
     // Listen for messages from popup/background
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      this.handleMessage(message, sender, sendResponse);
-      return true;
+      try {
+        this.handleMessage(message, sender, sendResponse);
+        return true;
+      } catch (error) {
+        console.error('Content script message handling error:', error);
+        sendResponse({ error: (error as Error).message });
+        return false;
+      }
     });
   }
 
   private setupContent() {
-    this.addCodeClimbIndicator();
-    this.setupCodeBlockEnhancements();
+    // Temporarily disable to prevent interference with Qiita
+    try {
+      this.addCodeClimbIndicator();
+      // this.setupCodeBlockEnhancements(); // Temporarily disabled
+    } catch (error) {
+      console.error('CodeClimb setup error:', error);
+    }
   }
 
   private addCodeClimbIndicator() {
@@ -89,9 +100,12 @@ class ContentScriptManager {
       wrapper.style.position = 'relative';
       wrapper.className = 'codeclimb-enhance';
       
-      // Wrap the code block
-      block.parentNode?.insertBefore(wrapper, block);
-      wrapper.appendChild(block);
+      // Wrap the code block safely
+      const parentNode = block.parentNode;
+      if (parentNode && parentNode.contains(block)) {
+        parentNode.insertBefore(wrapper, block);
+        wrapper.appendChild(block);
+      }
 
       // Add copy button
       const copyButton = document.createElement('button');

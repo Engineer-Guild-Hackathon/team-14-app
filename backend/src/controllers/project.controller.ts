@@ -20,7 +20,10 @@ const projectUpdateSchema = z.object({
 export const createProject = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
+    logger.info(`🚀 [createProject] Starting project creation for user ${userId}`, req.body);
+    
     const projectData = projectSchema.parse(req.body);
+    logger.info(`🚀 [createProject] Parsed project data:`, projectData);
 
     // Check if project with same local path exists
     const existingProject = await prisma.project.findFirst({
@@ -31,6 +34,7 @@ export const createProject = async (req: Request, res: Response) => {
     });
 
     if (existingProject) {
+      logger.warn(`❌ [createProject] Project already exists at path: ${projectData.localPath}`);
       return res.status(400).json({
         error: {
           code: 'PROJECT_EXISTS',
@@ -39,6 +43,7 @@ export const createProject = async (req: Request, res: Response) => {
       });
     }
 
+    logger.info(`🔨 [createProject] Creating project in database...`);
     const project = await prisma.project.create({
       data: {
         ...projectData,
@@ -53,14 +58,18 @@ export const createProject = async (req: Request, res: Response) => {
       }
     });
 
-    logger.info(`Project created: ${project.id} by user ${userId}`);
+    logger.info(`✅ [createProject] Project created successfully: ${project.id}`, project);
 
-    return res.status(201).json({
+    const response = {
       message: 'プロジェクトが作成されました',
       project
-    });
+    };
+    
+    logger.info(`📤 [createProject] Sending response:`, response);
+    return res.status(201).json(response);
   } catch (error) {
     if (error instanceof z.ZodError) {
+      logger.error(`❌ [createProject] Validation error:`, error.errors);
       return res.status(400).json({
         error: {
           code: 'VALIDATION_ERROR',
@@ -70,7 +79,7 @@ export const createProject = async (req: Request, res: Response) => {
       });
     }
 
-    logger.error('Project creation error:', error);
+    logger.error('❌ [createProject] Unexpected error:', error);
     return res.status(500).json({
       error: {
         code: 'INTERNAL_SERVER_ERROR',
@@ -83,6 +92,7 @@ export const createProject = async (req: Request, res: Response) => {
 export const getProjects = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
+    logger.info(`📋 [getProjects] Fetching projects for user ${userId}`);
 
     const projects = await prisma.project.findMany({
       where: { userId },
@@ -112,6 +122,9 @@ export const getProjects = async (req: Request, res: Response) => {
       orderBy: { updatedAt: 'desc' }
     });
 
+    logger.info(`📋 [getProjects] Found ${projects.length} projects in database`);
+    logger.info(`📋 [getProjects] Raw projects:`, projects);
+
     // Calculate project statistics
     const projectsWithStats = projects.map(project => ({
       ...project,
@@ -126,11 +139,14 @@ export const getProjects = async (req: Request, res: Response) => {
       }
     }));
 
-    return res.json({
+    const response = {
       projects: projectsWithStats
-    });
+    };
+    
+    logger.info(`📤 [getProjects] Sending response with ${projectsWithStats.length} projects:`, response);
+    return res.json(response);
   } catch (error) {
-    logger.error('Get projects error:', error);
+    logger.error('❌ [getProjects] Error occurred:', error);
     return res.status(500).json({
       error: {
         code: 'INTERNAL_SERVER_ERROR',

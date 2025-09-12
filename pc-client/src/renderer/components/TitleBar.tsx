@@ -1,6 +1,23 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 export function TitleBar() {
+  const [platform, setPlatform] = useState<string>('');
+
+  useEffect(() => {
+    const getPlatform = async () => {
+      try {
+        if (window.electronAPI?.getPlatform) {
+          const platformInfo = await window.electronAPI.getPlatform();
+          setPlatform(platformInfo);
+        }
+      } catch (error) {
+        console.error('Failed to get platform:', error);
+      }
+    };
+
+    getPlatform();
+  }, []);
+
   const handleMinimize = () => {
     window.electronAPI.minimize();
   };
@@ -19,7 +36,7 @@ export function TitleBar() {
         <span className="text-sm font-medium text-slate-600">CodeClimb</span>
       </div>
       
-      {process.platform !== 'darwin' && (
+      {platform && platform !== 'darwin' && (
         <div className="flex space-x-1">
           <button
             onClick={handleMinimize}

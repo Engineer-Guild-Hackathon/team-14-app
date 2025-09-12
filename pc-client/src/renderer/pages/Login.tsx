@@ -18,14 +18,21 @@ export function Login() {
     setError('');
 
     try {
+      console.log('Form submit - isRegistering:', isRegistering, 'formData:', formData);
       const result = isRegistering 
         ? await register(formData)
         : await login({ email: formData.email, password: formData.password });
 
+      console.log('Form submit result:', result);
+
       if (!result.success) {
+        console.log('Form submit failed:', result.error);
         setError(result.error || 'エラーが発生しました');
+      } else {
+        console.log('Form submit success - should navigate now');
       }
     } catch (error: any) {
+      console.error('Form submit error:', error);
       setError('ネットワークエラーが発生しました');
     } finally {
       setIsLoading(false);

@@ -64,6 +64,7 @@ function App() {
     try {
       // Get current tab
       const tab = await MessageHandler.getCurrentTab();
+      console.log('initializeApp - getCurrentTab result:', tab);
       setCurrentTab(tab);
 
       // Check authentication
@@ -124,12 +125,28 @@ function App() {
 
   const handleQuestGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeProject || !currentTab?.url) return;
+    console.log('handleQuestGenerate called');
+    console.log('activeProject:', activeProject);
+    console.log('currentTab:', currentTab);
+    console.log('questForm:', questForm);
+    
+    if (!activeProject || !currentTab?.url) {
+      console.log('Missing activeProject or currentTab.url');
+      setError('プロジェクトまたはタブURLが見つかりません');
+      return;
+    }
 
     setIsGenerating(true);
     setError('');
 
     try {
+      console.log('Calling MessageHandler.generateQuest with:', {
+        articleUrl: currentTab.url,
+        implementationGoal: questForm.implementationGoal,
+        difficulty: questForm.difficulty,
+        projectId: activeProject.id
+      });
+      
       const result = await MessageHandler.generateQuest({
         articleUrl: currentTab.url,
         implementationGoal: questForm.implementationGoal,

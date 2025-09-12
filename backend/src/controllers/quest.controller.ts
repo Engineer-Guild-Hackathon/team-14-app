@@ -128,9 +128,25 @@ export const getQuests = async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const { status, projectId } = req.query;
 
+    console.log('🎯 [getQuests] Request query:', { status, projectId, userId });
+
     const where: any = { userId };
-    if (status) where.status = status;
+    
+    // Support multiple statuses (comma-separated)
+    if (status) {
+      const statusArray = typeof status === 'string' ? status.split(',').map(s => s.trim()) : [status];
+      console.log('🎯 [getQuests] Status filter:', statusArray);
+      
+      if (statusArray.length === 1) {
+        where.status = statusArray[0];
+      } else {
+        where.status = { in: statusArray };
+      }
+    }
+    
     if (projectId) where.projectId = projectId;
+
+    console.log('🎯 [getQuests] Where clause:', where);
 
     const quests = await prisma.quest.findMany({
       where,
@@ -162,6 +178,14 @@ export const getQuests = async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    console.log('🎯 [getQuests] Found quests:', quests.length);
+    console.log('🎯 [getQuests] Quest details:', quests.map(q => ({ 
+      id: q.id, 
+      title: q.title, 
+      status: q.status,
+      projectName: q.project.name 
+    })));
+
     return res.json({
       quests: quests.map(quest => ({
         ...quest,
@@ -177,7 +201,7 @@ export const getQuests = async (req: Request, res: Response) => {
       }
     });
   }
-};
+};;
 
 export const getQuest = async (req: Request, res: Response) => {
   try {

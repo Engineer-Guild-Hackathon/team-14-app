@@ -5,7 +5,7 @@ import { setupIPCHandlers } from './ipc/handlers';
 import { getFileWatcher } from './services/fileWatcher';
 import { ConfigStore } from './store/config';
 
-const isDev = process.env.NODE_ENV === 'development';
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 class ElectronApp {
   private mainWindow: BrowserWindow | null = null;
@@ -60,17 +60,35 @@ class ElectronApp {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, '../preload/index.js'),
-        webSecurity: !isDev
+        webSecurity: !isDev,
+        allowRunningInsecureContent: isDev,
+        experimentalFeatures: isDev
       },
       show: false,
       icon: path.join(__dirname, '../../assets/icon.png')
     });
 
     if (isDev) {
+      console.log('Loading development URL: http://localhost:3001');
       this.mainWindow.loadURL('http://localhost:3001');
       this.mainWindow.webContents.openDevTools();
+      
+      // Debug resource loading
+      this.mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+        console.error(`Failed to load: ${validatedURL} - ${errorDescription} (${errorCode})`);
+      });
+
+      this.mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+        console.log(`Console[${level}]: ${message} at ${sourceId}:${line}`);
+      });
+
+      this.mainWindow.webContents.on('did-finish-load', () => {
+        console.log('Page finished loading');
+      });
     } else {
-      this.mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
+      const htmlPath = path.join(__dirname, '../../dist/renderer/index.html');
+      console.log('Loading production file:', htmlPath);
+      this.mainWindow.loadFile(htmlPath);
     }
 
     this.mainWindow.once('ready-to-show', () => {

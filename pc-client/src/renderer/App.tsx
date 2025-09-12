@@ -6,11 +6,16 @@ import { TitleBar } from './components/TitleBar';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Settings } from './pages/Settings';
-import '../types/electron';
+import { QuestDetails } from './pages/QuestDetails';
+/// <reference types="../types/electron" />
 
 function App() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    console.log('App - Auth state changed:', { user, isLoading, isAuthenticated });
+  }, [user, isLoading, isAuthenticated]);
 
   useEffect(() => {
     const initialize = async () => {
@@ -107,6 +112,17 @@ function App() {
             element={
               isAuthenticated ? (
                 <Settings />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            } 
+          />
+          
+          <Route 
+            path="/quest/:questId" 
+            element={
+              isAuthenticated ? (
+                <QuestDetails />
               ) : (
                 <Navigate to="/login" replace />
               )

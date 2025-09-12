@@ -4,7 +4,7 @@ interface Project {
   id: string;
   name: string;
   description?: string;
-  path?: string;
+  localPath?: string;  // Changed from 'path' to 'localPath' to match backend
   language?: string;
   createdAt: string;
   updatedAt: string;
@@ -62,9 +62,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               </span>
             )}
             
-            {project.path && (
-              <span className="truncate max-w-xs" title={project.path}>
-                📁 {project.path}
+            {project.localPath && (
+              <span className="truncate max-w-xs" title={project.localPath}>
+                📁 {project.localPath}
               </span>
             )}
           </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../hooks/useProject';
 import { ProjectCard } from '../components/ProjectCard';
@@ -92,69 +93,140 @@ interface Activity {
 export function Dashboard() {
   const { user, logout } = useAuth();
   const { projects, createProject, openProject, refreshProjects } = useProject();
+  const navigate = useNavigate();
   
   const [activeQuests, setActiveQuests] = useState<Quest[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddProject, setShowAddProject] = useState(false);
+  const [selectedProjectPath, setSelectedProjectPath] = useState('');
+  const [projectName, setProjectName] = useState('');
+
+  useEffect(() => {
+    console.log('showAddProject state changed:', showAddProject);
+  }, [showAddProject]);
+
+  useEffect(() => {
+    console.log('Projects array changed. Length:', projects.length, 'Projects:', projects);
+  }, [projects]);
 
   // Initial data loading
   useEffect(() => {
     loadDashboardData();
   }, []);
 
+  // Listen for WebSocket events
+  useEffect(() => {
+    const handleQuestProgress = (data: any) => {
+      console.log('Quest progress received:', data);
+      loadActiveQuests();
+    };
+
+    const handleQuestCompleted = (data: any) => {
+      console.log('Quest completed:', data);
+      loadActiveQuests();
+      loadUserStats();
+      loadRecentActivities();
+    };
+
+    const handleFileUpdate = (data: any) => {
+      console.log('File update received:', data);
+      // Refresh activities to show file changes
+      loadRecentActivities();
+    };
+
+    // Register event listeners
+    window.electronAPI.on('file-watcher:quest-progress', handleQuestProgress);
+    window.electronAPI.on('file-watcher:quest-completed', handleQuestCompleted);
+    window.electronAPI.on('socket:file-update', handleFileUpdate);
+    window.electronAPI.on('socket:quest-progress', handleQuestProgress);
+
+    // Cleanup
+    return () => {
+      window.electronAPI.off('file-watcher:quest-progress');
+      window.electronAPI.off('file-watcher:quest-completed');
+      window.electronAPI.off('socket:file-update');
+      window.electronAPI.off('socket:quest-progress');
+    };
+  }, []);
+
+  // Monitor activeQuests state changes
+  useEffect(() => {
+    console.log('🔄 [activeQuests Effect] Active quests state changed:', activeQuests);
+    console.log('🔄 [activeQuests Effect] Active quests length:', activeQuests.length);
+    if (activeQuests.length > 0) {
+      console.log('🔄 [activeQuests Effect] First quest:', activeQuests[0]);
+    }
+  }, [activeQuests]);
+
   const loadDashboardData = async () => {
+    console.log('📊 [loadDashboardData] Starting to load dashboard data...');
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      // Load projects
+      console.log('📊 [loadDashboardData] Loading projects...');
       await refreshProjects();
       
-      // Load active quests
+      console.log('📊 [loadDashboardData] Projects loaded, now loading active quests...');
       await loadActiveQuests();
       
-      // Load user stats
+      console.log('📊 [loadDashboardData] Active quests loaded, now loading user stats...');
       await loadUserStats();
       
-      // Load recent activities
+      console.log('📊 [loadDashboardData] User stats loaded, now loading recent activities...');
       await loadRecentActivities();
       
+      console.log('📊 [loadDashboardData] All data loaded successfully');
+      console.log('📊 [loadDashboardData] Current state - Projects:', projects);
+      console.log('📊 [loadDashboardData] Current state - Active Quests:', activeQuests);
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+      console.error('📊 [loadDashboardData] Failed to load dashboard data:', error);
     } finally {
       setLoading(false);
+      console.log('📊 [loadDashboardData] Loading complete');
     }
-  };
+  };;
 
   const loadActiveQuests = async () => {
+    console.log('🔍 [loadActiveQuests] Starting to load active quests...');
     try {
-      const response = await fetch('/api/quests?status=IN_PROGRESS', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
+      // First, let's check what quests exist for the active project
+      const activeProject = projects.find(p => p.isActive);
+      console.log('🔍 [loadActiveQuests] Active project:', activeProject);
+      
+      // Load both PENDING and IN_PROGRESS quests
+      const response = await window.electronAPI.api.request({
+        method: 'GET',
+        url: 'http://localhost:3000/api/quests?status=PENDING,IN_PROGRESS'
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        setActiveQuests(data.quests || []);
+      console.log('🔍 [loadActiveQuests] API Response:', response);
+      
+      if (response.success) {
+        const quests = response.data.quests || [];
+        console.log('🔍 [loadActiveQuests] Found quests:', quests);
+        console.log('🔍 [loadActiveQuests] Quest count:', quests.length);
+        console.log('🔍 [loadActiveQuests] Quest statuses:', quests.map((q: any) => ({ id: q.id, title: q.title, status: q.status })));
+        
+        setActiveQuests(quests);
+        console.log('🔍 [loadActiveQuests] State updated with quests');
+      } else {
+        console.warn('🔍 [loadActiveQuests] API request was not successful:', response);
       }
     } catch (error) {
-      console.error('Failed to load active quests:', error);
+      console.error('🔍 [loadActiveQuests] Failed to load active quests:', error);
     }
-  };
+  };;
 
   const loadUserStats = async () => {
     try {
-      const response = await fetch('/api/analytics/progress', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
+      const response = await window.electronAPI.api.request({
+        method: 'GET',
+        url: 'http://localhost:3000/api/analytics/progress'
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        setUserStats(data);
+      if (response.success) {
+        setUserStats(response.data);
       }
     } catch (error) {
       console.error('Failed to load user stats:', error);
@@ -163,15 +235,13 @@ export function Dashboard() {
 
   const loadRecentActivities = async () => {
     try {
-      const response = await fetch('/api/analytics/activities?limit=10', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
+      const response = await window.electronAPI.api.request({
+        method: 'GET',
+        url: 'http://localhost:3000/api/analytics/activities?limit=10'
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        setRecentActivities(data.activities || []);
+      if (response.success) {
+        setRecentActivities(response.data.activities || []);
       }
     } catch (error) {
       console.error('Failed to load recent activities:', error);
@@ -187,25 +257,99 @@ export function Dashboard() {
     }
   };
 
+  const handleSelectFolder = async () => {
+    try {
+      const result = await window.electronAPI.showOpenDialog({
+        properties: ['openDirectory'],
+        title: 'プロジェクトフォルダを選択',
+        buttonLabel: '選択'
+      });
+
+      if (!result.canceled && result.filePaths.length > 0) {
+        const folderPath = result.filePaths[0];
+        const folderName = folderPath.split('/').pop() || '';
+        
+        console.log('Selected folder:', folderPath, 'Name:', folderName);
+        
+        setSelectedProjectPath(folderPath);
+        setProjectName(folderName);
+      }
+    } catch (error) {
+      console.error('Failed to select folder:', error);
+    }
+  };
+
   const handleAddProject = async (projectData: { name: string; path: string; description?: string }) => {
     try {
-      await createProject(projectData);
-      setShowAddProject(false);
-      await refreshProjects();
+      console.log('🏗️ [handleAddProject] Starting to add project...', projectData);
+      
+      // Convert 'path' to 'localPath' to match the backend and useProject interface
+      const createProjectData = {
+        name: projectData.name,
+        localPath: projectData.path,
+        description: projectData.description
+      };
+      console.log('🏗️ [handleAddProject] Converted data for createProject:', createProjectData);
+      
+      const result = await createProject(createProjectData);
+      console.log('🏗️ [handleAddProject] createProject result:', result);
+      
+      if (result) {
+        console.log('✅ [handleAddProject] Project created successfully, closing modal and refreshing');
+        setShowAddProject(false);
+        setSelectedProjectPath('');
+        setProjectName('');
+        
+        console.log('🔄 [handleAddProject] Refreshing projects list...');
+        await refreshProjects();
+        console.log('✅ [handleAddProject] Projects list refreshed');
+      } else {
+        console.error('❌ [handleAddProject] Project creation failed - no result returned');
+      }
     } catch (error) {
-      console.error('Failed to add project:', error);
+      console.error('❌ [handleAddProject] Exception occurred:', error);
     }
   };
 
   const handleQuestContinue = async (quest: Quest) => {
+    console.log('🎯 [handleQuestContinue] Starting quest:', quest);
     try {
-      // Open the project associated with the quest
-      await openProject(quest.project.id);
-      // Navigate to quest view or start quest
+      // Check if quest has project information
+      const projectId = quest.project?.id || quest.projectId;
+      console.log('🎯 [handleQuestContinue] Project ID:', projectId);
+      
+      if (!projectId) {
+        console.error('🎯 [handleQuestContinue] No project ID found in quest');
+        alert('エラー: クエストにプロジェクト情報が見つかりません');
+        return;
+      }
+      
+      // Find the project in the projects list
+      const targetProject = projects.find(p => p.id === projectId);
+      console.log('🎯 [handleQuestContinue] Found target project:', targetProject);
+      
+      if (!targetProject) {
+        console.error('🎯 [handleQuestContinue] Project not found in projects list:', projectId);
+        console.log('🎯 [handleQuestContinue] Available projects:', projects);
+        alert('エラー: 関連するプロジェクトが見つかりません');
+        return;
+      }
+      
+      // Open the project
+      console.log('🎯 [handleQuestContinue] Opening project:', targetProject.name);
+      openProject(targetProject);
+      
+      console.log('🎯 [handleQuestContinue] Quest continued successfully');
+      
+      // Navigate to quest details page
+      console.log('🎯 [handleQuestContinue] Navigating to quest details page:', `/quest/${quest.id}`);
+      navigate(`/quest/${quest.id}`);
+      
     } catch (error) {
-      console.error('Failed to continue quest:', error);
+      console.error('🎯 [handleQuestContinue] Failed to continue quest:', error);
+      alert('エラー: クエストの開始に失敗しました');
     }
-  };
+  };;;;
 
   const refreshStats = async () => {
     await Promise.all([
@@ -427,8 +571,17 @@ export function Dashboard() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg leading-6 font-medium text-gray-900">プロジェクト</h3>
                   <button
-                    onClick={() => setShowAddProject(true)}
-                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                    type="button"
+                    onClick={(e) => {
+                      console.log('🔴 MAIN プロジェクト追加 button clicked');
+                      console.log('🔴 Event:', e);
+                      console.log('🔴 Current showAddProject value:', showAddProject);
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowAddProject(true);
+                      console.log('🔴 setShowAddProject(true) called');
+                    }}
+                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
                   >
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -453,8 +606,17 @@ export function Dashboard() {
                       </svg>
                       <p>プロジェクトがありません</p>
                       <button
-                        onClick={() => setShowAddProject(true)}
-                        className="mt-2 text-blue-600 hover:text-blue-700 font-medium"
+                        type="button"
+                        onClick={(e) => {
+                          console.log('🟡 EMPTY STATE プロジェクト追加 button clicked');
+                          console.log('🟡 Event:', e);
+                          console.log('🟡 Current showAddProject value:', showAddProject);
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowAddProject(true);
+                          console.log('🟡 setShowAddProject(true) called');
+                        }}
+                        className="mt-2 text-blue-600 hover:text-blue-700 font-medium cursor-pointer focus:outline-none focus:underline"
                       >
                         最初のプロジェクトを追加してください
                       </button>
@@ -465,17 +627,21 @@ export function Dashboard() {
             </div>
 
             {/* Active Quests */}
+            {console.log('🎯 [Render] activeQuests state:', activeQuests)}
+            {console.log('🎯 [Render] activeQuests.length:', activeQuests.length)}
             {activeQuests.length > 0 && (
               <div className="mt-6 bg-white shadow rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
                   <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">進行中のクエスト</h3>
                   <div className="space-y-4">
-                    {activeQuests.slice(0, 3).map((quest) => (
-                      <div key={quest.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                    {activeQuests.slice(0, 3).map((quest) => {
+                      console.log('🎯 [Render] Rendering quest:', quest);
+                      return (
+                        <div key={quest.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <h4 className="text-sm font-medium text-gray-900">{quest.title}</h4>
-                            <p className="text-sm text-gray-500 mt-1">{quest.project.name}</p>
+                            <p className="text-sm text-gray-500 mt-1">{quest.project?.name || quest.projectId || 'プロジェクト不明'}</p>
                             <div className="flex items-center mt-2 space-x-3">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getDifficultyColor(quest.difficulty)}`}>
                                 {quest.difficulty}
@@ -494,14 +660,18 @@ export function Dashboard() {
                             </div>
                           </div>
                           <button
-                            onClick={() => handleQuestContinue(quest)}
+                            onClick={() => {
+                              console.log('🔴 [Button Click] Continue button clicked for quest:', quest.id);
+                              handleQuestContinue(quest);
+                            }}
                             className="ml-4 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
                           >
                             続行
                           </button>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -563,34 +733,49 @@ export function Dashboard() {
               e.preventDefault();
               const formData = new FormData(e.target as HTMLFormElement);
               handleAddProject({
-                name: formData.get('name') as string,
-                path: formData.get('path') as string,
+                name: projectName,
+                path: selectedProjectPath,
                 description: formData.get('description') as string,
               });
             }}>
               <div className="space-y-4">
+                {/* Folder Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">プロジェクトフォルダ</label>
+                  <button
+                    type="button"
+                    onClick={handleSelectFolder}
+                    className="w-full flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-md hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  >
+                    <svg className="w-5 h-5 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H6a2 2 0 00-2 2z" />
+                    </svg>
+                    {selectedProjectPath ? 'フォルダを変更' : 'フォルダを選択'}
+                  </button>
+                  
+                  {selectedProjectPath && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded-md">
+                      <p className="text-sm text-gray-600 break-all">{selectedProjectPath}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Auto-populated Project Name */}
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700">プロジェクト名</label>
                   <input
                     type="text"
                     name="name"
                     id="name"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
                     required
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    placeholder="例: React Todo App"
+                    placeholder="プロジェクト名を入力..."
                   />
                 </div>
-                <div>
-                  <label htmlFor="path" className="block text-sm font-medium text-gray-700">プロジェクトパス</label>
-                  <input
-                    type="text"
-                    name="path"
-                    id="path"
-                    required
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    placeholder="/Users/username/projects/my-app"
-                  />
-                </div>
+
+                {/* Optional Description */}
                 <div>
                   <label htmlFor="description" className="block text-sm font-medium text-gray-700">説明（任意）</label>
                   <textarea
@@ -605,13 +790,18 @@ export function Dashboard() {
               <div className="mt-6 flex space-x-3">
                 <button
                   type="submit"
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  disabled={!selectedProjectPath || !projectName.trim()}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
                   追加
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddProject(false)}
+                  onClick={() => {
+                    setShowAddProject(false);
+                    setSelectedProjectPath('');
+                    setProjectName('');
+                  }}
                   className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                 >
                   キャンセル

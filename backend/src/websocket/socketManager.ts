@@ -168,7 +168,7 @@ export class SocketManager {
           await handleFileSync(socket, data, this.io);
           
           // Broadcast file changes to other project members
-          socket.to(`project:${data.projectId}`).emit('file-changes', {
+          socket.to(`project:${data.projectId}`).emit('file-update', {
             userId,
             projectId: data.projectId,
             changes: data.changes,

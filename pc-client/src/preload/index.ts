@@ -86,7 +86,12 @@ const electronAPI = {
       'socket:error',
       'socket:verification-result',
       'socket:quest-progress',
-      'socket:file-update'
+      'socket:file-update',
+      'file-watcher:file-change',
+      'file-watcher:file-sync',
+      'file-watcher:quest-progress',
+      'file-watcher:quest-completed',
+      'file-watcher:verification-result'
     ];
 
     if (validChannels.includes(channel)) {

@@ -6,12 +6,10 @@ export default defineConfig({
   plugins: [react()],
   base: './',
   root: '.',
+  publicDir: 'public',
   build: {
     outDir: 'dist/renderer',
-    emptyOutDir: true,
-    rollupOptions: {
-      input: 'public/index.html'
-    }
+    emptyOutDir: true
   },
   resolve: {
     alias: {
@@ -22,6 +20,7 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3001
+    port: 3001,
+    strictPort: true
   }
 });

@@ -11,8 +11,9 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'codeclimb-backend' },
   transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' }),
+    // Temporarily removed file transports due to Docker permission issues
+    // new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+    // new winston.transports.File({ filename: 'logs/combined.log' }),
   ],
 });
 

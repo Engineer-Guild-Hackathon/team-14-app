@@ -46,8 +46,8 @@ class BackgroundService {
       return true; // Keep the message channel open for async responses
     });
 
-    // Context menu
-    this.setupContextMenu();
+    // Context menu - temporarily disabled
+    // this.setupContextMenu();
   }
 
   private async initialize() {
@@ -145,17 +145,20 @@ class BackgroundService {
       switch (message.type) {
         case 'GET_CURRENT_TAB':
           const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-          sendResponse({ tab: tabs[0] });
+          console.log('Background GET_CURRENT_TAB - tabs found:', tabs.length, tabs[0]);
+          sendResponse({ success: true, tab: tabs[0] });
           break;
 
         case 'SET_AUTH':
+          console.log('Background SET_AUTH - saving auth data:', message.data);
           await chrome.storage.local.set({ auth: message.data });
           sendResponse({ success: true });
           break;
 
         case 'GET_AUTH':
           const auth = await this.getStoredData('auth');
-          sendResponse({ auth });
+          console.log('Background GET_AUTH - auth data:', auth);
+          sendResponse({ success: true, auth });
           break;
 
         case 'CLEAR_AUTH':
@@ -174,13 +177,21 @@ class BackgroundService {
           break;
 
         case 'GENERATE_QUEST':
+          console.log('Background GENERATE_QUEST received with data:', message.data);
           const result = await this.generateQuest(message.data);
+          console.log('Background GENERATE_QUEST result:', result);
           sendResponse(result);
           break;
 
         case 'EXTRACT_ARTICLE_CONTENT':
           const content = await this.extractArticleContent(sender.tab?.id);
           sendResponse({ content });
+          break;
+
+        case 'OPEN_QUEST_GENERATOR':
+          // Open popup when CodeClimb button is clicked
+          chrome.action.openPopup();
+          sendResponse({ success: true });
           break;
 
         default:
@@ -244,10 +255,13 @@ class BackgroundService {
     difficulty: string;
     projectId: string;
   }): Promise<any> {
+    console.log('generateQuest function called with:', data);
     try {
       const auth = await this.getStoredData('auth');
+      console.log('generateQuest - auth token exists:', !!auth?.accessToken);
       
       if (!auth?.accessToken) {
+        console.log('generateQuest - No auth token, throwing error');
         throw new Error('Authentication required');
       }
 
@@ -256,15 +270,21 @@ class BackgroundService {
       const timeout = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
       let response;
       try {
-        response = await fetch(`${this.serverUrl}/api/quests/generate`, {
+        const requestUrl = `${this.serverUrl}/api/quests/generate`;
+        const requestBody = JSON.stringify(data);
+        console.log('generateQuest - Sending request to:', requestUrl);
+        console.log('generateQuest - Request body:', requestBody);
+        
+        response = await fetch(requestUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${auth.accessToken}`
           },
-          body: JSON.stringify(data),
+          body: requestBody,
           signal: controller.signal
         });
+        console.log('generateQuest - Response status:', response.status);
       } finally {
         clearTimeout(timeout);
       }
@@ -277,12 +297,11 @@ class BackgroundService {
       const result = await response.json();
       
       // Show success notification
-      chrome.notifications.create({
-        type: 'basic',
-        iconUrl: 'icons/icon-48.png',
-        title: 'CodeClimb',
-        message: 'クエストが正常に生成されました！'
-      });
+      // chrome.notifications.create({
+      //   type: 'basic',
+      //   title: 'CodeClimb',
+      //   message: 'クエストが正常に生成されました！'
+      // });
 
       return { success: true, quest: result.quest };
     } catch (error) {

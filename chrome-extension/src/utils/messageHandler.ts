@@ -151,6 +151,7 @@ export class APIManager {
 
   static async request(endpoint: string, options: RequestInit = {}): Promise<any> {
     const auth = await MessageHandler.getAuth();
+    console.log('APIManager.request - auth:', auth);
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -159,6 +160,9 @@ export class APIManager {
 
     if (auth?.accessToken) {
       headers['Authorization'] = `Bearer ${auth.accessToken}`;
+      console.log('APIManager.request - Added Authorization header');
+    } else {
+      console.log('APIManager.request - No auth token found');
     }
 
     try {
@@ -186,10 +190,12 @@ export class APIManager {
     });
 
     if (response.tokens) {
-      await MessageHandler.setAuth({
+      const authData = {
         accessToken: response.tokens.accessToken,
         userId: response.user.id
-      });
+      };
+      console.log('APIManager.login - Saving auth data:', authData);
+      await MessageHandler.setAuth(authData);
     }
 
     return response;

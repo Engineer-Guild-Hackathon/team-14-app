@@ -8,7 +8,9 @@
     "activeTab",
     "storage",
     "tabs",
-    "scripting"
+    "scripting",
+    "contextMenus",
+    "notifications"
   ],
   
   "host_permissions": [
@@ -28,40 +30,25 @@
         "https://zenn.dev/*",
         "https://dev.to/*",
         "https://medium.com/*",
-        "https://blog.*.com/*",
         "https://*.blog/*",
         "https://developer.mozilla.org/*",
         "https://stackoverflow.com/*"
       ],
       "js": ["content.js"],
-      "css": ["content.css"],
       "run_at": "document_end"
     }
   ],
 
   "action": {
     "default_popup": "popup.html",
-    "default_title": "CodeClimb - 学習クエスト生成",
-    "default_icon": {
-      "16": "icons/icon-16.png",
-      "32": "icons/icon-32.png",
-      "48": "icons/icon-48.png",
-      "128": "icons/icon-128.png"
-    }
+    "default_title": "CodeClimb - 学習クエスト生成"
   },
 
   "options_page": "options.html",
 
-  "icons": {
-    "16": "icons/icon-16.png",
-    "32": "icons/icon-32.png",
-    "48": "icons/icon-48.png",
-    "128": "icons/icon-128.png"
-  },
-
   "web_accessible_resources": [
     {
-      "resources": ["icons/*", "popup.html", "options.html"],
+      "resources": ["popup.html", "options.html"],
       "matches": ["<all_urls>"]
     }
   ]
