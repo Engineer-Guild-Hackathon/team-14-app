@@ -6,6 +6,7 @@ import { TitleBar } from './components/TitleBar';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Settings } from './pages/Settings';
+import '../types/electron';
 
 function App() {
   const { user, isLoading, isAuthenticated } = useAuth();

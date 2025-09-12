@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { APIManager } from '../../utils/messageHandler';
+import { APIManager, MessageHandler } from '../../utils/messageHandler';
 
 interface Props {
   questId: string;
@@ -89,35 +89,24 @@ const SummitRecordButton: React.FC<Props> = ({
   const getCodeSnapshot = async (): Promise<any> => {
     try {
       // PCクライアントからプロジェクトのコードを取得
-      const response = await new Promise<any>((resolve, reject) => {
-        chrome.runtime.sendMessage(
-          {
-            type: 'GET_PROJECT_CODE',
-            questId
-          },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve(response);
-            }
-          }
-        );
+      const response = await MessageHandler.sendToBackground({
+        type: 'GET_PROJECT_CODE',
+        data: { questId }
       });
-      return response.code || {};
+      return response.success ? (response.data?.code || {}) : {};
     } catch (error) {
       console.error('Code snapshot error:', error);
       return {};
     }
-  };;
+  };
 
   const getImplementationTime = async (): Promise<number> => {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await MessageHandler.sendToBackground({
         type: 'GET_IMPLEMENTATION_TIME',
-        questId
+        data: { questId }
       });
-      return response.time || 0;
+      return response.success ? (response.data?.time || 0) : 0;
     } catch (error) {
       console.error('Implementation time error:', error);
       return 0;
@@ -126,11 +115,11 @@ const SummitRecordButton: React.FC<Props> = ({
 
   const detectTechStack = async (): Promise<string[]> => {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await MessageHandler.sendToBackground({
         type: 'DETECT_TECH_STACK',
-        questId
+        data: { questId }
       });
-      return response.techStack || [];
+      return response.success ? (response.data?.techStack || []) : [];
     } catch (error) {
       console.error('Tech stack detection error:', error);
       return [];

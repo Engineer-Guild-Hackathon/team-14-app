@@ -29,7 +29,8 @@
   },
   "include": [
     "src/renderer/**/*",
-    "src/preload/**/*"
+    "src/preload/**/*",
+    "src/types/**/*"
   ],
   "exclude": [
     "node_modules",
