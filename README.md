@@ -13,5 +13,5 @@
 ---
 
 ## デモ　/ プレゼン資料
-- デモURL: 
+- デモURL: ReleaseのtagからPCクライアントアプリをダウンロードして下さい
 - プレゼンURL：https://www.canva.com/design/DAGyxKQn70c/mm4VxgtxQ8L1v6LVfdg3NA/edit
