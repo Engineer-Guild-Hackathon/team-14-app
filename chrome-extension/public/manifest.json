@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "CodeClimb",
+  "version": "1.0.0",
+  "description": "技術記事から学習クエストを生成し、実装をサポートするChrome拡張機能",
+  
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting",
+    "contextMenus",
+    "notifications"
+  ],
+  
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://*/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://qiita.com/*",
+        "https://zenn.dev/*",
+        "https://dev.to/*",
+        "https://medium.com/*",
+        "https://*.blog/*",
+        "https://developer.mozilla.org/*",
+        "https://stackoverflow.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CodeClimb - 学習クエスト生成"
+  },
+
+  "options_page": "options.html",
+
+  "web_accessible_resources": [
+    {
+      "resources": ["popup.html", "options.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

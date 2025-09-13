@@ -1,0 +1,34 @@
+# Development Dockerfile with hot reload
+FROM node:18-alpine
+
+# Install dumb-init and openssl for proper signal handling and Prisma
+RUN apk add --no-cache dumb-init openssl
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev)
+RUN npm ci
+
+# Copy prisma schema
+COPY prisma ./prisma
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Expose port and debug port
+EXPOSE 3000 9229
+
+# Create uploads directory
+RUN mkdir -p uploads
+
+# Health check for development
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+
+# Start with dumb-init and enable debug mode
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["npm", "run", "dev"]

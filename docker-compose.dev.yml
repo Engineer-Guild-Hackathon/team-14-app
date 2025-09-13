@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Development)
+  db:
+    image: postgres:15-alpine
+    container_name: codeclimb-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: codeclimb_dev
+      POSTGRES_USER: codeclimb_user
+      POSTGRES_PASSWORD: codeclimb_password
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - codeclimb-dev-network
+
+  # Redis (Development)
+  redis:
+    image: redis:7-alpine
+    container_name: codeclimb-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - codeclimb-dev-network
+
+  # Backend API Server (Development with hot reload)
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: codeclimb-backend-dev
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://codeclimb_user:codeclimb_password@db:5432/codeclimb_dev
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+      JWT_SECRET: dev-jwt-secret-key
+      JWT_EXPIRES_IN: 24h
+      JWT_REFRESH_SECRET: dev-refresh-secret-key
+      JWT_REFRESH_EXPIRES_IN: 7d
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      FRONTEND_URL: http://localhost:3001
+      CHROME_EXTENSION_ID: ${CHROME_EXTENSION_ID}
+      MAX_FILE_SIZE: 10485760
+      UPLOAD_PATH: /app/uploads
+      WS_CORS_ORIGIN: http://localhost:3001
+    volumes:
+      - ./backend:/app
+      - backend_dev_uploads:/app/uploads
+      - /app/node_modules # Prevent host node_modules from overriding container's
+    ports:
+      - "3000:3000"
+      - "9229:9229" # Debug port
+    networks:
+      - codeclimb-dev-network
+    command: ["npm", "run", "dev"]
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  backend_dev_uploads:
+    driver: local
+
+networks:
+  codeclimb-dev-network:
+    driver: bridge
