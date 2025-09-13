@@ -5,13 +5,13 @@
 ---
 
 ## チーム情報
-- チーム番号: （ここに記入）
-- チーム名: （ここに記入）
-- プロダクト名: （ここに記入）
-- メンバー: （GitHubアカウントまたは名前を列挙）
+- チーム番号: 14
+- チーム名: AKIBA
+- プロダクト名: CodeClime
+- メンバー: 保坂篤志 / 大場史温 / 大森青
 
 ---
 
 ## デモ　/ プレゼン資料
 - デモURL: 
-- プレゼンURL：
+- プレゼンURL：https://www.canva.com/design/DAGyxKQn70c/mm4VxgtxQ8L1v6LVfdg3NA/edit
