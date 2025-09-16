@@ -80,20 +80,20 @@ services:
       start_period: 40s
 
   # Database Migration (runs once)
-  db-migrate:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: codeclimb-db-migrate
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql://codeclimb_user:codeclimb_password@db:5432/codeclimb
-    command: ["sh", "-c", "npx prisma migrate deploy && npx prisma db seed"]
-    networks:
-      - codeclimb-network
-    restart: "no"
+  # db-migrate:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: codeclimb-db-migrate
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: postgresql://codeclimb_user:codeclimb_password@db:5432/codeclimb
+  #   command: ["sh", "-c", "npx prisma migrate deploy && npx prisma db seed"]
+  #   networks:
+  #     - codeclimb-network
+  #   restart: "no"
 
 volumes:
   postgres_data:
