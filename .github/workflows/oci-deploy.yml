@@ -36,10 +36,20 @@ jobs:
       - name: Deploy Docker Compose on OCI
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} << 'EOF'
-            cd ~/projects/code-climb/docker-images
             
+            echo "Loading Docker image..."
+            cd ~/projects/code-climb/docker-images
             docker load -i code-climb-backend.tar
 
+            
+            echo "Running DB migrations..."
+            docker run --rm \
+              -v ~/projects/code-climb/src/backend:/app \
+              --network codeclimb-network \
+              code-climb-backend:latest \
+              sh -c "npx prisma migrate deploy && npx prisma db seed"
+
+            echo "Starting Docker Compose..."
             cd ~/projects/code-climb/src
             docker compose down || true
             docker compose up -d
