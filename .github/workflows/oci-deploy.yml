@@ -15,21 +15,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Build Docker image
+        run: docker build -t code-climb-backend:latest ./backend
+
+      - name: Save Docker image as tar
+        run: docker save code-climb-backend:latest -o code-climb-backend.tar
+
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
+      - name: Copy Docker tar to OCI
+        run: scp -o StrictHostKeyChecking=no code-climb-backend.tar ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/home/${{ secrets.USERNAME }}/projects/code-climb/docker-images/
+
       - name: Copyfiles to server
         run: |
           rsync -avz -e "ssh -o StrictHostKeyChecking=no" --exclude '.git*' ./ ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/home/${{ secrets.USERNAME }}/projects/code-climb/src
 
-      - name: Deploy with Docker
+      - name: Deploy Docker Compose on OCI
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} << 'EOF'
+            cd ~/projects/code-climb/docker-images
+            
+            docker load -i code-climb-backend.tar
+
             cd ~/projects/code-climb/src
             docker compose down || true
-            docker compose build --no-cache
             docker compose up -d
           EOF
     
