@@ -22,7 +22,7 @@ jobs:
 
       - name: Copyfiles to server
         run: |
-          rsync -avz --exclude '.git*' ./ ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/home/${{ secrets.USERNAME }}/projects/code-climb/src
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no" --exclude '.git*' ./ ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/home/${{ secrets.USERNAME }}/projects/code-climb/src
 
       - name: Deploy with Docker
         run: |
