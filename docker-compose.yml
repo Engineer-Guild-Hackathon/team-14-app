@@ -43,10 +43,8 @@ services:
 
   # Backend API Server
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: codeclimb-backend
+    image: code-climb-backend:latest
+    container_name: code-climb-backend
     restart: unless-stopped
     depends_on:
       db:
