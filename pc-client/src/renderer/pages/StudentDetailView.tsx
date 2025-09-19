@@ -119,7 +119,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId }) => {
 
   const formatDate = (date: Date | null) => {
     if (!date) return '未設定';
-    return new Date(date).toLocaleDateString('ja-JP') + ' ' + new Date(date).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    const dateObj = new Date(date);
+    return dateObj.toLocaleDateString('ja-JP') + ' ' + dateObj.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   };
 
   const getStatusBadge = (status: StudentQuest['status']) => {

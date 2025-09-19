@@ -266,7 +266,7 @@ const QuestManagement: React.FC = () => {
       {/* 検索・フィルター */}
       <div className="bg-white rounded-lg shadow border border-gray-200 mb-6">
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <input
                 type="text"
@@ -286,17 +286,6 @@ const QuestManagement: React.FC = () => {
                 <option value="beginner">初級</option>
                 <option value="intermediate">中級</option>
                 <option value="advanced">上級</option>
-              </select>
-            </div>
-            <div>
-              <select
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                value={filters.statusFilter}
-                onChange={(e) => setFilters(prev => ({ ...prev, statusFilter: e.target.value as any }))}
-              >
-                <option value="all">全ての状況</option>
-                <option value="active">活動中</option>
-                <option value="completed">完了済み</option>
               </select>
             </div>
           </div>

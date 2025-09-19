@@ -13,7 +13,7 @@ export class TeacherController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      // 教師の担当クラス情報
+      // Get teacher's assigned classrooms
       const classrooms = await prisma.classroom.findMany({
         where: { teacherId },
         include: {
@@ -34,7 +34,7 @@ export class TeacherController {
         }
       });
 
-      // 全生徒の進捗状況
+      // Get all students' progress
       const allStudentIds = classrooms.flatMap(c =>
         c.students.map(s => s.student.id)
       );
@@ -43,7 +43,7 @@ export class TeacherController {
         where: {
           userId: { in: allStudentIds },
           updatedAt: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // 過去7日
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
           }
         },
         include: {
@@ -54,12 +54,12 @@ export class TeacherController {
         take: 20
       });
 
-      // アクティビティウィジェット: 最近ログインした生徒
+      // Activity widget: recently logged in students
       const recentLogins = await prisma.user.findMany({
         where: {
           id: { in: allStudentIds },
           lastLoginAt: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // 過去7日
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
           }
         },
         select: { id: true, name: true, email: true, lastLoginAt: true },
@@ -67,7 +67,7 @@ export class TeacherController {
         take: 10
       });
 
-      // 統計情報
+      // Statistics
       const stats = {
         totalClasses: classrooms.length,
         totalStudents: allStudentIds.length,
@@ -110,7 +110,7 @@ export class TeacherController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      // 教師がこの生徒を担当しているか確認
+      // Check if teacher is responsible for this student
       const isAuthorized = await prisma.classroomStudent.findFirst({
         where: {
           studentId,
