@@ -16,14 +16,11 @@ model User {
   avatar            String?
   bio               String?
   isActive          Boolean                 @default(true)
-  lastLoginAt       DateTime?
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
   badgeAwards       BadgeAward[]
   teacherClassrooms Classroom[]             @relation("TeacherClassrooms")
-  teacherGroups     Group[]                 @relation("TeacherGroups")
   studentClassrooms ClassroomStudent[]
-  studentGroups     GroupMember[]
   codeHistory       CodeHistory[]
   implementations   Implementation[]
   implComments      ImplementationComment[]
@@ -155,34 +152,9 @@ model ClassroomStudent {
   @@unique([classroomId, studentId])
 }
 
-model Group {
-  id          String        @id @default(uuid())
-  name        String
-  description String?
-  teacherId   String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  teacher     User          @relation("TeacherGroups", fields: [teacherId], references: [id])
-  members     GroupMember[]
-  assignments Assignment[]
-}
-
-model GroupMember {
-  id       String   @id @default(uuid())
-  groupId  String
-  userId   String
-  joinedAt DateTime @default(now())
-  isActive Boolean  @default(true)
-  group    Group    @relation(fields: [groupId], references: [id])
-  user     User     @relation(fields: [userId], references: [id])
-
-  @@unique([groupId, userId])
-}
-
 model Assignment {
   id          String    @id @default(uuid())
-  classroomId String?
-  groupId     String?
+  classroomId String
   questId     String
   title       String
   description String?
@@ -190,8 +162,7 @@ model Assignment {
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  classroom   Classroom? @relation(fields: [classroomId], references: [id])
-  group       Group?     @relation(fields: [groupId], references: [id])
+  classroom   Classroom @relation(fields: [classroomId], references: [id])
   quest       Quest     @relation(fields: [questId], references: [id])
 }
 
