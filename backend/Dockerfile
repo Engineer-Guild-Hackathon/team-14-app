@@ -4,6 +4,9 @@ FROM node:18-alpine AS builder
 # Set working directory
 WORKDIR /app
 
+# Install openssl to solve prizma permission error
+RUN apk add --no-cache openssl
+
 # Copy package files
 COPY package*.json ./
 
