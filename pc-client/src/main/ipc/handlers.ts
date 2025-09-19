@@ -56,31 +56,84 @@ export function setupIPCHandlers(mainWindow: BrowserWindow, configStore: ConfigS
 
   // Project handlers
   ipcMain.handle('project:add', (_, project: Omit<ProjectConfig, 'id' | 'lastOpened' | 'isActive'>) => {
-    return configStore.addProject(project);
+    try {
+      const newProject = configStore.addProject(project);
+      return { success: true, project: newProject };
+    } catch (error: any) {
+      console.error('Error adding project:', error);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.handle('project:update', (_, id: string, updates: Partial<ProjectConfig>) => {
-    return configStore.updateProject(id, updates);
+    try {
+      const success = configStore.updateProject(id, updates);
+      return { success };
+    } catch (error: any) {
+      console.error('Error updating project:', error);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.handle('project:remove', (_, id: string) => {
-    return configStore.removeProject(id);
+    try {
+      const success = configStore.removeProject(id);
+      return { success };
+    } catch (error: any) {
+      console.error('Error removing project:', error);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.handle('project:get', (_, id: string) => {
-    return configStore.getProject(id);
+    try {
+      const project = configStore.getProject(id);
+      return { success: true, project };
+    } catch (error: any) {
+      console.error('Error getting project:', error);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.handle('project:getAll', () => {
-    return configStore.getProjects();
+    try {
+      const projects = configStore.getProjects();
+      return { success: true, projects };
+    } catch (error: any) {
+      console.error('Error getting projects:', error);
+      return { success: false, error: error.message, projects: [] };
+    }
   });
 
   ipcMain.handle('project:setActive', (_, id: string) => {
-    return configStore.setActiveProject(id);
+    try {
+      const success = configStore.setActiveProject(id);
+      return { success };
+    } catch (error: any) {
+      console.error('Error setting active project:', error);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.handle('project:getActive', () => {
-    return configStore.getActiveProject();
+    try {
+      const project = configStore.getActiveProject();
+      return { success: true, project };
+    } catch (error: any) {
+      console.error('Error getting active project:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('project:setCurrent', (_, id: string) => {
+    try {
+      const success = configStore.setActiveProject(id);
+      configStore.set('currentProject', configStore.getProject(id));
+      return { success };
+    } catch (error: any) {
+      console.error('Error setting current project:', error);
+      return { success: false, error: error.message };
+    }
   });
 
   // API handlers
@@ -92,17 +145,31 @@ export function setupIPCHandlers(mainWindow: BrowserWindow, configStore: ConfigS
   }) => {
     try {
       const auth = configStore.getAuth();
+      const baseUrl = process.env.VITE_API_URL || 'https://codeclimb.omori.f5.si/api';
+      const cfAccessClientId = process.env.VITE_CF_ACCESS_CLIENT_ID || '867ff0dd303ae2bf7b6f8cf0d88b0374.access';
+      const cfAccessClientSecret = process.env.VITE_CF_ACCESS_CLIENT_SECRET || '27eae7ab520da49391f99d4c66bf2a14635f567c5f6b62410d7327622d1a4d34';
+
       const headers: any = {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       };
+
+      // Add Cloudflare Access headers
+      if (cfAccessClientId && cfAccessClientSecret) {
+        headers['CF-Access-Client-Id'] = cfAccessClientId;
+        headers['CF-Access-Client-Secret'] = cfAccessClientSecret;
+      }
 
       if (auth?.accessToken) {
         headers.Authorization = `Bearer ${auth.accessToken}`;
       }
 
+      // Construct full URL if relative URL is provided
+      const fullUrl = options.url.startsWith('http') ? options.url : `${baseUrl}${options.url}`;
+
       const response = await axios({
         method: options.method,
-        url: options.url,
+        url: fullUrl,
         data: options.data,
         params: options.params,
         headers,
@@ -116,7 +183,7 @@ export function setupIPCHandlers(mainWindow: BrowserWindow, configStore: ConfigS
       };
     } catch (error: any) {
       console.error('API request error:', error);
-      
+
       if (error.response?.status === 401) {
         configStore.clearAuth();
         mainWindow.webContents.send('auth:expired');
@@ -132,10 +199,10 @@ export function setupIPCHandlers(mainWindow: BrowserWindow, configStore: ConfigS
   });
 
   // Socket connection handlers
-  ipcMain.handle('socket:connect', (_, serverUrl: string) => {
+  ipcMain.handle('socket:connect', (_, serverUrl?: string) => {
     try {
       const auth = configStore.getAuth();
-      
+
       if (!auth?.accessToken) {
         return { success: false, error: 'No access token available' };
       }
@@ -144,12 +211,26 @@ export function setupIPCHandlers(mainWindow: BrowserWindow, configStore: ConfigS
         socketConnection.disconnect();
       }
 
-      socketConnection = io(serverUrl, {
+      const wsUrl = serverUrl || process.env.VITE_WS_URL || 'https://codeclimb.omori.f5.si';
+      const cfAccessClientId = process.env.VITE_CF_ACCESS_CLIENT_ID || '867ff0dd303ae2bf7b6f8cf0d88b0374.access';
+      const cfAccessClientSecret = process.env.VITE_CF_ACCESS_CLIENT_SECRET || '27eae7ab520da49391f99d4c66bf2a14635f567c5f6b62410d7327622d1a4d34';
+
+      const socketOptions: any = {
         auth: {
           token: auth.accessToken
         },
         transports: ['websocket']
-      });
+      };
+
+      // Add Cloudflare Access headers if available
+      if (cfAccessClientId && cfAccessClientSecret) {
+        socketOptions.extraHeaders = {
+          'CF-Access-Client-Id': cfAccessClientId,
+          'CF-Access-Client-Secret': cfAccessClientSecret
+        };
+      }
+
+      socketConnection = io(wsUrl, socketOptions);
 
       socketConnection.on('connect', () => {
         console.log('Socket connected');

@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { LoadingScreen } from './components/LoadingScreen';
 import { TitleBar } from './components/TitleBar';
-import { Dashboard } from './pages/Dashboard';
+import Dashboard from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Settings } from './pages/Settings';
 import { QuestDetails } from './pages/QuestDetails';

@@ -118,11 +118,6 @@ class ElectronApp {
       return process.platform;
     });
 
-    ipcMain.handle('dialog:showOpenDialog', async (_, options) => {
-      if (!this.mainWindow) return { canceled: true };
-      
-      return await dialog.showOpenDialog(this.mainWindow, options);
-    });
 
     ipcMain.handle('file-watcher:start', (_, projectPath: string) => {
       return this.startFileWatcher(projectPath);

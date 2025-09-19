@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
 
+// Get API and WebSocket URLs from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://codeclimb.omori.f5.si/api';
+const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'https://codeclimb.omori.f5.si';
+
 export interface User {
   id: string;
   name: string;
@@ -66,7 +70,7 @@ export function useAuth() {
     try {
       const response = await window.electronAPI.api.request({
         method: 'POST',
-        url: 'http://localhost:3000/api/auth/login',
+        url: `${API_BASE_URL}/auth/login`,
         data: credentials
       });
 
@@ -75,7 +79,7 @@ export function useAuth() {
       if (response.success) {
         console.log('Login success, response.data:', response.data);
         const { user: userData, tokens } = response.data;
-        
+
         // Store user and auth data
         await Promise.all([
           window.electronAPI.user.set(userData),
@@ -90,7 +94,10 @@ export function useAuth() {
         setIsAuthenticated(true);
 
         // Connect to socket
-        await window.electronAPI.socket.connect('http://localhost:3000');
+        await window.electronAPI.socket.connect(WS_BASE_URL);
+
+        // Force a re-check to ensure consistency
+        setTimeout(() => checkAuthStatus(), 100);
 
         return { success: true };
       } else {
@@ -117,7 +124,7 @@ export function useAuth() {
     try {
       const response = await window.electronAPI.api.request({
         method: 'POST',
-        url: 'http://localhost:3000/api/auth/register',
+        url: `${API_BASE_URL}/auth/register`,
         data
       });
 
@@ -126,7 +133,7 @@ export function useAuth() {
       if (response.success) {
         console.log('Register success, response.data:', response.data);
         const { user: userData, tokens } = response.data;
-        
+
         // Store user and auth data
         await Promise.all([
           window.electronAPI.user.set(userData),
@@ -141,7 +148,10 @@ export function useAuth() {
         setIsAuthenticated(true);
 
         // Connect to socket
-        await window.electronAPI.socket.connect('http://localhost:3000');
+        await window.electronAPI.socket.connect(WS_BASE_URL);
+
+        // Force a re-check to ensure consistency
+        setTimeout(() => checkAuthStatus(), 100);
 
         return { success: true };
       } else {
@@ -190,7 +200,7 @@ export function useAuth() {
 
       const response = await window.electronAPI.api.request({
         method: 'POST',
-        url: 'http://localhost:3000/api/auth/refresh',
+        url: `${API_BASE_URL}/auth/refresh`,
         data: { refreshToken: auth.refreshToken }
       });
 

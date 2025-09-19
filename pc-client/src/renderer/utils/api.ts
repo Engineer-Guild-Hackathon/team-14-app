@@ -7,7 +7,7 @@ interface ApiError {
 }
 
 // Base configuration
-const BASE_URL = process.env.VITE_API_URL || 'http://localhost:3000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://codeclimb.omori.f5.si/api';
 const TIMEOUT = 10000;
 
 // Create axios instance

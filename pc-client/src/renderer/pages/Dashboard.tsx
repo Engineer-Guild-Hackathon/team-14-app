@@ -1,816 +1,601 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { useProject } from '../hooks/useProject';
-import { ProjectCard } from '../components/ProjectCard';
+import React, { useState, useEffect } from 'react'
+import { useAuthStore } from '../stores/authStore'
+import { useProjectStore } from '../stores/projectStore'
+import SkillMap3D from '../components/SkillMap3D'
+import MyQuest from '../components/MyQuest'
+import '../styles/SkillMap3D.css'
 
-interface Quest {
-  id: string;
-  title: string;
-  description: string;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
-  progress: {
-    completedSteps: number;
-    totalSteps: number;
-    timeSpent: number;
-    startedAt?: string;
-    completedAt?: string;
-  };
-  project: {
-    id: string;
-    name: string;
-  };
-  steps: Array<{
-    id: string;
-    stepNumber: number;
-    title: string;
-    description: string;
-    type: 'ARRANGE_CODE' | 'IMPLEMENT_CODE' | 'VERIFY_OUTPUT';
-    isCompleted: boolean;
-  }>;
-}
+type ActiveView = 'dashboard' | 'my-quest' | 'activity' | 'my-rate' | 'leaderboard' | 'roadmap';
 
-interface UserStats {
-  totalQuests: number;
-  completedQuests: number;
-  inProgressQuests: number;
-  totalProjects: number;
-  totalLearningHours: number;
-  currentStreak: number;
-  summitRecords: number;
-  averageQuestTime: number;
-  skillLevel: string;
-  recentAchievements: Array<{
-    id: string;
-    title: string;
-    description: string;
-    earnedAt: string;
-    type: 'QUEST_COMPLETION' | 'STREAK' | 'SUMMIT' | 'SKILL_LEVEL';
-  }>;
-}
+const Dashboard: React.FC = () => {
+  const { user, logout, isWebSocketConnected, extensionStatus, syncWithExtension } = useAuthStore()
+  const {
+    projects,
+    currentProject,
+    isLoading,
+    error,
+    addProject,
+    removeProject,
+    setCurrentProject,
+    selectDirectory,
+    clearError
+  } = useProjectStore()
 
-interface Project {
-  id: string;
-  name: string;
-  path: string;
-  description?: string;
-  lastOpened: string;
-  isActive: boolean;
-  settings: {
-    autoWatch: boolean;
-    syncEnabled: boolean;
-    excludePatterns: string[];
-  };
-  git?: {
-    isRepo: boolean;
-    branch?: string;
-    remoteUrl?: string;
-  };
-  activeQuest?: Quest;
-  stats?: {
-    totalQuests: number;
-    completedQuests: number;
-    lastActivity: string;
-  };
-}
-
-interface Activity {
-  id: string;
-  type: 'QUEST_STARTED' | 'QUEST_COMPLETED' | 'PROJECT_ADDED' | 'CODE_VERIFIED' | 'SUMMIT_RECORDED';
-  title: string;
-  description: string;
-  timestamp: string;
-  questId?: string;
-  projectId?: string;
-  metadata?: {
-    difficulty?: string;
-    timeSpent?: number;
-    score?: number;
-  };
-}
-
-export function Dashboard() {
-  const { user, logout } = useAuth();
-  const { projects, createProject, openProject, refreshProjects } = useProject();
-  const navigate = useNavigate();
-  
-  const [activeQuests, setActiveQuests] = useState<Quest[]>([]);
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
-  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAddProject, setShowAddProject] = useState(false);
-  const [selectedProjectPath, setSelectedProjectPath] = useState('');
-  const [projectName, setProjectName] = useState('');
+  const [activeView, setActiveView] = useState<ActiveView>('dashboard')
+  const [showAddProjectDialog, setShowAddProjectDialog] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectDescription, setNewProjectDescription] = useState('')
+  const [selectedPath, setSelectedPath] = useState('')
 
   useEffect(() => {
-    console.log('showAddProject state changed:', showAddProject);
-  }, [showAddProject]);
-
-  useEffect(() => {
-    console.log('Projects array changed. Length:', projects.length, 'Projects:', projects);
-  }, [projects]);
-
-  // Initial data loading
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  // Listen for WebSocket events
-  useEffect(() => {
-    const handleQuestProgress = (data: any) => {
-      console.log('Quest progress received:', data);
-      loadActiveQuests();
-    };
-
-    const handleQuestCompleted = (data: any) => {
-      console.log('Quest completed:', data);
-      loadActiveQuests();
-      loadUserStats();
-      loadRecentActivities();
-    };
-
-    const handleFileUpdate = (data: any) => {
-      console.log('File update received:', data);
-      // Refresh activities to show file changes
-      loadRecentActivities();
-    };
-
-    // Register event listeners
-    window.electronAPI.on('file-watcher:quest-progress', handleQuestProgress);
-    window.electronAPI.on('file-watcher:quest-completed', handleQuestCompleted);
-    window.electronAPI.on('socket:file-update', handleFileUpdate);
-    window.electronAPI.on('socket:quest-progress', handleQuestProgress);
-
-    // Cleanup
-    return () => {
-      window.electronAPI.off('file-watcher:quest-progress');
-      window.electronAPI.off('file-watcher:quest-completed');
-      window.electronAPI.off('socket:file-update');
-      window.electronAPI.off('socket:quest-progress');
-    };
-  }, []);
-
-  // Monitor activeQuests state changes
-  useEffect(() => {
-    console.log('🔄 [activeQuests Effect] Active quests state changed:', activeQuests);
-    console.log('🔄 [activeQuests Effect] Active quests length:', activeQuests.length);
-    if (activeQuests.length > 0) {
-      console.log('🔄 [activeQuests Effect] First quest:', activeQuests[0]);
+    // エラーを自動的にクリア（5秒後）
+    if (error) {
+      const timer = setTimeout(() => {
+        clearError()
+      }, 5000)
+      return () => clearTimeout(timer)
     }
-  }, [activeQuests]);
+  }, [error, clearError])
 
-  const loadDashboardData = async () => {
-    console.log('📊 [loadDashboardData] Starting to load dashboard data...');
-    setLoading(true);
+  const handleAddProject = async () => {
     try {
-      console.log('📊 [loadDashboardData] Loading projects...');
-      await refreshProjects();
-      
-      console.log('📊 [loadDashboardData] Projects loaded, now loading active quests...');
-      await loadActiveQuests();
-      
-      console.log('📊 [loadDashboardData] Active quests loaded, now loading user stats...');
-      await loadUserStats();
-      
-      console.log('📊 [loadDashboardData] User stats loaded, now loading recent activities...');
-      await loadRecentActivities();
-      
-      console.log('📊 [loadDashboardData] All data loaded successfully');
-      console.log('📊 [loadDashboardData] Current state - Projects:', projects);
-      console.log('📊 [loadDashboardData] Current state - Active Quests:', activeQuests);
-    } catch (error) {
-      console.error('📊 [loadDashboardData] Failed to load dashboard data:', error);
-    } finally {
-      setLoading(false);
-      console.log('📊 [loadDashboardData] Loading complete');
-    }
-  };;
-
-  const loadActiveQuests = async () => {
-    console.log('🔍 [loadActiveQuests] Starting to load active quests...');
-    try {
-      // First, let's check what quests exist for the active project
-      const activeProject = projects.find(p => p.isActive);
-      console.log('🔍 [loadActiveQuests] Active project:', activeProject);
-      
-      // Load both PENDING and IN_PROGRESS quests
-      const response = await window.electronAPI.api.request({
-        method: 'GET',
-        url: 'http://localhost:3000/api/quests?status=PENDING,IN_PROGRESS'
-      });
-      
-      console.log('🔍 [loadActiveQuests] API Response:', response);
-      
-      if (response.success) {
-        const quests = response.data.quests || [];
-        console.log('🔍 [loadActiveQuests] Found quests:', quests);
-        console.log('🔍 [loadActiveQuests] Quest count:', quests.length);
-        console.log('🔍 [loadActiveQuests] Quest statuses:', quests.map((q: any) => ({ id: q.id, title: q.title, status: q.status })));
-        
-        setActiveQuests(quests);
-        console.log('🔍 [loadActiveQuests] State updated with quests');
-      } else {
-        console.warn('🔍 [loadActiveQuests] API request was not successful:', response);
+      const path = await selectDirectory()
+      if (path) {
+        setSelectedPath(path)
+        setNewProjectName(path.split('/').pop() || '')
+        setShowAddProjectDialog(true)
       }
     } catch (error) {
-      console.error('🔍 [loadActiveQuests] Failed to load active quests:', error);
+      console.error('Failed to select directory:', error)
     }
-  };;
+  }
 
-  const loadUserStats = async () => {
+  const handleConfirmAddProject = async () => {
+    if (!selectedPath || !newProjectName.trim()) {
+      return
+    }
+
     try {
-      const response = await window.electronAPI.api.request({
-        method: 'GET',
-        url: 'http://localhost:3000/api/analytics/progress'
-      });
-      
-      if (response.success) {
-        setUserStats(response.data);
-      }
+      await addProject(selectedPath, newProjectName.trim(), newProjectDescription.trim() || undefined)
+      setShowAddProjectDialog(false)
+      setNewProjectName('')
+      setNewProjectDescription('')
+      setSelectedPath('')
     } catch (error) {
-      console.error('Failed to load user stats:', error);
+      console.error('Failed to add project:', error)
     }
-  };
+  }
 
-  const loadRecentActivities = async () => {
-    try {
-      const response = await window.electronAPI.api.request({
-        method: 'GET',
-        url: 'http://localhost:3000/api/analytics/activities?limit=10'
-      });
-      
-      if (response.success) {
-        setRecentActivities(response.data.activities || []);
+  const handleCancelAddProject = () => {
+    setShowAddProjectDialog(false)
+    setNewProjectName('')
+    setNewProjectDescription('')
+    setSelectedPath('')
+  }
+
+  const handleRemoveProject = async (projectId: string) => {
+    if (window.confirm('このプロジェクトを削除しますか？')) {
+      try {
+        await removeProject(projectId)
+      } catch (error) {
+        console.error('Failed to remove project:', error)
       }
-    } catch (error) {
-      console.error('Failed to load recent activities:', error);
     }
-  };
+  }
 
-  const handleProjectSelect = async (project: Project) => {
-    try {
-      await openProject(project.id);
-      // Navigate to project view or update state
-    } catch (error) {
-      console.error('Failed to select project:', error);
-    }
-  };
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('ja-JP')
+  }
 
-  const handleSelectFolder = async () => {
-    try {
-      const result = await window.electronAPI.showOpenDialog({
-        properties: ['openDirectory'],
-        title: 'プロジェクトフォルダを選択',
-        buttonLabel: '選択'
-      });
-
-      if (!result.canceled && result.filePaths.length > 0) {
-        const folderPath = result.filePaths[0];
-        const folderName = folderPath.split('/').pop() || '';
-        
-        console.log('Selected folder:', folderPath, 'Name:', folderName);
-        
-        setSelectedProjectPath(folderPath);
-        setProjectName(folderName);
-      }
-    } catch (error) {
-      console.error('Failed to select folder:', error);
-    }
-  };
-
-  const handleAddProject = async (projectData: { name: string; path: string; description?: string }) => {
-    try {
-      console.log('🏗️ [handleAddProject] Starting to add project...', projectData);
-      
-      // Convert 'path' to 'localPath' to match the backend and useProject interface
-      const createProjectData = {
-        name: projectData.name,
-        localPath: projectData.path,
-        description: projectData.description
-      };
-      console.log('🏗️ [handleAddProject] Converted data for createProject:', createProjectData);
-      
-      const result = await createProject(createProjectData);
-      console.log('🏗️ [handleAddProject] createProject result:', result);
-      
-      if (result) {
-        console.log('✅ [handleAddProject] Project created successfully, closing modal and refreshing');
-        setShowAddProject(false);
-        setSelectedProjectPath('');
-        setProjectName('');
-        
-        console.log('🔄 [handleAddProject] Refreshing projects list...');
-        await refreshProjects();
-        console.log('✅ [handleAddProject] Projects list refreshed');
-      } else {
-        console.error('❌ [handleAddProject] Project creation failed - no result returned');
-      }
-    } catch (error) {
-      console.error('❌ [handleAddProject] Exception occurred:', error);
-    }
-  };
-
-  const handleQuestContinue = async (quest: Quest) => {
-    console.log('🎯 [handleQuestContinue] Starting quest:', quest);
-    try {
-      // Check if quest has project information
-      const projectId = quest.project?.id || quest.projectId;
-      console.log('🎯 [handleQuestContinue] Project ID:', projectId);
-      
-      if (!projectId) {
-        console.error('🎯 [handleQuestContinue] No project ID found in quest');
-        alert('エラー: クエストにプロジェクト情報が見つかりません');
-        return;
-      }
-      
-      // Find the project in the projects list
-      const targetProject = projects.find(p => p.id === projectId);
-      console.log('🎯 [handleQuestContinue] Found target project:', targetProject);
-      
-      if (!targetProject) {
-        console.error('🎯 [handleQuestContinue] Project not found in projects list:', projectId);
-        console.log('🎯 [handleQuestContinue] Available projects:', projects);
-        alert('エラー: 関連するプロジェクトが見つかりません');
-        return;
-      }
-      
-      // Open the project
-      console.log('🎯 [handleQuestContinue] Opening project:', targetProject.name);
-      openProject(targetProject);
-      
-      console.log('🎯 [handleQuestContinue] Quest continued successfully');
-      
-      // Navigate to quest details page
-      console.log('🎯 [handleQuestContinue] Navigating to quest details page:', `/quest/${quest.id}`);
-      navigate(`/quest/${quest.id}`);
-      
-    } catch (error) {
-      console.error('🎯 [handleQuestContinue] Failed to continue quest:', error);
-      alert('エラー: クエストの開始に失敗しました');
-    }
-  };;;;
-
-  const refreshStats = async () => {
-    await Promise.all([
-      loadUserStats(),
-      loadActiveQuests(),
-      loadRecentActivities()
-    ]);
-  };
-
-  const formatLearningTime = (hours: number): string => {
-    if (hours < 1) {
-      return `${Math.round(hours * 60)}分`;
-    }
-    return `${Math.round(hours)}時間`;
-  };
-
-  const getActivityIcon = (type: Activity['type']) => {
-    switch (type) {
-      case 'QUEST_COMPLETED':
-        return (
-          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        );
-      case 'QUEST_STARTED':
-        return (
-          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        );
-      case 'PROJECT_ADDED':
-        return (
-          <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-        );
-      case 'CODE_VERIFIED':
-        return (
-          <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-          </svg>
-        );
-      case 'SUMMIT_RECORDED':
-        return (
-          <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l6 6 6-6 4 4v12H1V7l4-4z" />
-          </svg>
-        );
-      default:
-        return (
-          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        );
-    }
-  };
-
-  const getDifficultyColor = (difficulty: Quest['difficulty']) => {
-    switch (difficulty) {
-      case 'EASY':
-        return 'bg-green-100 text-green-800';
-      case 'MEDIUM':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'HARD':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">ダッシュボードを読み込んでいます...</p>
-        </div>
-      </div>
-    );
+  const getProgressPercentage = (completed: number, total: number) => {
+    return total > 0 ? Math.round((completed / total) * 100) : 0
   }
 
   return (
-    <div className="flex-1 bg-gray-50 overflow-y-auto">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">CodeClimb ダッシュボード</h1>
+    <div className="h-screen flex bg-gray-50">
+      {/* サイドバー */}
+      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        {/* ロゴ */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+              CC
             </div>
-            
-            <div className="flex items-center space-x-4">
+            <span className="text-xl font-bold text-gray-900">CodeClimb</span>
+          </div>
+        </div>
+
+        {/* ナビゲーション */}
+        <div className="flex-1 p-6">
+          {/* Quest セクション */}
+          <div className="mb-8">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Quest</h3>
+            <nav className="space-y-1">
               <button
-                onClick={refreshStats}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
-                title="データを更新"
+                onClick={() => setActiveView('dashboard')}
+                className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === 'dashboard'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+                Dashboard
               </button>
-              
-              <div className="flex items-center space-x-3">
-                {user?.avatar && (
-                  <img
-                    className="h-8 w-8 rounded-full"
-                    src={user.avatar}
-                    alt={user.name}
-                  />
-                )}
-                <div className="text-sm">
-                  <p className="text-gray-900 font-medium">{user?.name}</p>
-                  <p className="text-gray-500">{user?.email}</p>
-                </div>
-                <button
-                  onClick={logout}
-                  className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1 rounded-md hover:bg-gray-100"
-                >
-                  ログアウト
-                </button>
-              </div>
-            </div>
+              <button
+                onClick={() => setActiveView('my-quest')}
+                className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === 'my-quest'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                My Quest
+              </button>
+              <button
+                onClick={() => setActiveView('activity')}
+                className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === 'activity'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Activity
+              </button>
+            </nav>
           </div>
-        </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Stats Overview */}
-        <div className="px-4 sm:px-0">
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-green-100 rounded-md flex items-center justify-center">
-                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">完了クエスト</dt>
-                      <dd className="text-lg font-medium text-gray-900">{userStats?.completedQuests || 0}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">進行中</dt>
-                      <dd className="text-lg font-medium text-gray-900">{userStats?.inProgressQuests || 0}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-purple-100 rounded-md flex items-center justify-center">
-                      <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">学習時間</dt>
-                      <dd className="text-lg font-medium text-gray-900">{formatLearningTime(userStats?.totalLearningHours || 0)}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-yellow-100 rounded-md flex items-center justify-center">
-                      <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l6 6 6-6 4 4v12H1V7l4-4z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">登頂記録</dt>
-                      <dd className="text-lg font-medium text-gray-900">{userStats?.summitRecords || 0}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
+          {/* Ranking セクション */}
+          <div className="mb-8">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Ranking</h3>
+            <nav className="space-y-1">
+              <button
+                onClick={() => setActiveView('my-rate')}
+                className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === 'my-rate'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                My Rate
+              </button>
+              <button
+                onClick={() => setActiveView('roadmap')}
+                className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === 'roadmap'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Roadmap
+              </button>
+              <button
+                onClick={() => setActiveView('leaderboard')}
+                className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === 'leaderboard'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Growth
+              </button>
+            </nav>
           </div>
         </div>
 
-        {/* Main Content Grid */}
-        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* Projects Section */}
-          <div className="lg:col-span-2">
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">プロジェクト</h3>
+        {/* ユーザー情報 */}
+        <div className="p-6 border-t border-gray-100">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
+              <span className="text-gray-600 font-medium">
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </span>
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-gray-900">{user?.name}</p>
+              <p className="text-sm text-gray-500">{user?.email}</p>
+            </div>
+          </div>
+          <button
+            onClick={logout}
+            className="w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            サインアウト
+          </button>
+        </div>
+      </div>
+
+      {/* メインコンテンツ */}
+      <div className="flex-1 overflow-hidden">
+        {activeView === 'dashboard' && (
+          <div className="h-full p-8 overflow-auto">
+            {/* エラー表示 */}
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* 統計カード */}
+            <div className="grid grid-cols-4 gap-6 mb-8">
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">アクティブ</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {projects.filter(p => p.questCount > 0).length}
+                    </p>
+                  </div>
+                  <div className="text-blue-500 text-2xl">📊</div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">合計</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {projects.reduce((sum, p) => sum + p.questCount, 0)}
+                    </p>
+                  </div>
+                  <div className="text-green-500 text-2xl">✅</div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">学習時間</p>
+                    <p className="text-2xl font-bold text-gray-900">--時間</p>
+                  </div>
+                  <div className="text-purple-500 text-2xl">⏱️</div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">合格率</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {projects.length > 0
+                        ? Math.round((projects.reduce((sum, p) => sum + p.completedQuests, 0) / Math.max(projects.reduce((sum, p) => sum + p.questCount, 0), 1)) * 100)
+                        : 0}%
+                    </p>
+                  </div>
+                  <div className="text-yellow-500 text-2xl">🎯</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8">
+              {/* プロジェクト管理 */}
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-semibold text-gray-900">プロジェクト</h2>
                   <button
-                    type="button"
-                    onClick={(e) => {
-                      console.log('🔴 MAIN プロジェクト追加 button clicked');
-                      console.log('🔴 Event:', e);
-                      console.log('🔴 Current showAddProject value:', showAddProject);
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowAddProject(true);
-                      console.log('🔴 setShowAddProject(true) called');
-                    }}
-                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+                    onClick={handleAddProject}
+                    disabled={isLoading}
+                    className="w-8 h-8 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg flex items-center justify-center transition-colors"
                   >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    プロジェクト追加
+                    +
                   </button>
                 </div>
-                
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {projects.map((project) => (
-                    <ProjectCard
-                      key={project.id}
-                      project={project}
-                      onSelect={() => handleProjectSelect(project)}
-                    />
-                  ))}
-                  
-                  {projects.length === 0 && (
-                    <div className="col-span-2 text-center py-8 text-gray-500">
-                      <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      <p>プロジェクトがありません</p>
+
+                <div className="space-y-3">
+                  {projects.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500 mb-4">プロジェクトがありません</p>
                       <button
-                        type="button"
-                        onClick={(e) => {
-                          console.log('🟡 EMPTY STATE プロジェクト追加 button clicked');
-                          console.log('🟡 Event:', e);
-                          console.log('🟡 Current showAddProject value:', showAddProject);
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowAddProject(true);
-                          console.log('🟡 setShowAddProject(true) called');
-                        }}
-                        className="mt-2 text-blue-600 hover:text-blue-700 font-medium cursor-pointer focus:outline-none focus:underline"
+                        onClick={handleAddProject}
+                        disabled={isLoading}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
                       >
-                        最初のプロジェクトを追加してください
+                        プロジェクトを追加
                       </button>
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Active Quests */}
-            {console.log('🎯 [Render] activeQuests state:', activeQuests)}
-            {console.log('🎯 [Render] activeQuests.length:', activeQuests.length)}
-            {activeQuests.length > 0 && (
-              <div className="mt-6 bg-white shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">進行中のクエスト</h3>
-                  <div className="space-y-4">
-                    {activeQuests.slice(0, 3).map((quest) => {
-                      console.log('🎯 [Render] Rendering quest:', quest);
-                      return (
-                        <div key={quest.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
-                        <div className="flex items-start justify-between">
+                  ) : (
+                    projects.map((project) => (
+                      <div
+                        key={project.id}
+                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                          currentProject?.id === project.id
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => setCurrentProject(project)}
+                      >
+                        <div className="flex items-center justify-between">
                           <div className="flex-1">
-                            <h4 className="text-sm font-medium text-gray-900">{quest.title}</h4>
-                            <p className="text-sm text-gray-500 mt-1">{quest.project?.name || quest.projectId || 'プロジェクト不明'}</p>
-                            <div className="flex items-center mt-2 space-x-3">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getDifficultyColor(quest.difficulty)}`}>
-                                {quest.difficulty}
+                            <h3 className="font-medium text-gray-900">{project.name}</h3>
+                            <p className="text-sm text-gray-500 truncate">{project.path}</p>
+                            <div className="flex items-center space-x-4 mt-2">
+                              <span className="text-xs text-gray-400">
+                                クエスト: {project.completedQuests}/{project.questCount}
                               </span>
-                              <div className="flex items-center text-sm text-gray-500">
-                                <span>{quest.progress.completedSteps}/{quest.progress.totalSteps} ステップ完了</span>
+                              <span className="text-xs text-gray-400">
+                                更新: {formatDate(project.lastAccessedAt)}
+                              </span>
+                            </div>
+                            {project.questCount > 0 && (
+                              <div className="mt-2">
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                  <div
+                                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                    style={{ width: `${getProgressPercentage(project.completedQuests, project.questCount)}%` }}
+                                  />
+                                </div>
                               </div>
-                            </div>
-                            <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                              <div
-                                className="bg-blue-600 h-2 rounded-full"
-                                style={{
-                                  width: `${(quest.progress.completedSteps / quest.progress.totalSteps) * 100}%`
-                                }}
-                              ></div>
-                            </div>
+                            )}
                           </div>
                           <button
-                            onClick={() => {
-                              console.log('🔴 [Button Click] Continue button clicked for quest:', quest.id);
-                              handleQuestContinue(quest);
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleRemoveProject(project.id)
                             }}
-                            className="ml-4 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
+                            className="ml-2 p-1 text-gray-400 hover:text-red-600 transition-colors"
                           >
-                            続行
+                            ×
                           </button>
                         </div>
                       </div>
-                      );
-                    })}
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* アクティビティカレンダー */}
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900 mb-6">最近のアクティビティ</h2>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">今月の活動</h3>
+                    <div className="grid grid-cols-7 gap-1">
+                      {Array.from({ length: 28 }, (_, i) => (
+                        <div
+                          key={i}
+                          className="w-4 h-4 bg-gray-200 rounded-sm"
+                          title={`${new Date().getMonth() + 1}月${i + 1}日`}
+                        />
+                      ))}
+                    </div>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 取り組み中のクエスト */}
+            {currentProject && (
+              <div className="mt-8 bg-white p-6 rounded-lg border border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  取り組み中のクエスト - {currentProject.name}
+                </h2>
+                <div className="text-gray-500">
+                  <p>まだクエストがありません。Chrome拡張機能を使って記事からクエストを生成してください。</p>
                 </div>
               </div>
             )}
           </div>
+        )}
 
-          {/* Recent Activities Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">最近のアクティビティ</h3>
-                <div className="flow-root">
-                  <ul className="-mb-8">
-                    {recentActivities.map((activity, activityIdx) => (
-                      <li key={activity.id}>
-                        <div className="relative pb-8">
-                          {activityIdx !== recentActivities.length - 1 ? (
-                            <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true" />
-                          ) : null}
-                          <div className="relative flex space-x-3">
-                            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                              {getActivityIcon(activity.type)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm text-gray-900">
-                                <p>{activity.title}</p>
-                              </div>
-                              <div className="mt-1 text-sm text-gray-500">
-                                <p>{activity.description}</p>
-                              </div>
-                              <div className="mt-1 text-xs text-gray-400">
-                                {new Date(activity.timestamp).toLocaleString('ja-JP')}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                
-                {recentActivities.length === 0 && (
-                  <div className="text-center py-4 text-gray-500">
-                    <p className="text-sm">最近のアクティビティはありません</p>
+        {activeView === 'my-quest' && (
+          <div className="h-full">
+            <MyQuest />
+          </div>
+        )}
+
+        {activeView === 'activity' && (
+          <div className="h-full p-8">
+            <SkillMap3D />
+          </div>
+        )}
+
+        {activeView === 'my-rate' && (
+          <div className="h-full p-8 overflow-auto">
+            {/* MyRate画面 */}
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center justify-between mb-8">
+                <h1 className="text-3xl font-bold text-gray-900">ランク</h1>
+                <div className="flex items-center space-x-4">
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">プレイヤー</p>
+                    <p className="font-semibold text-gray-900">{user?.name}</p>
                   </div>
-                )}
+                  <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center">
+                    <span className="text-gray-600 font-medium text-lg">
+                      {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 現在のランク表示 */}
+              <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-8 text-white mb-8">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold mb-2">次のランク: 桃色</h2>
+                    <p className="text-lg mb-4">あと <span className="text-3xl font-bold">246</span> pt</p>
+                    <div className="w-full bg-white bg-opacity-20 rounded-full h-3">
+                      <div
+                        className="bg-white h-3 rounded-full transition-all duration-500"
+                        style={{ width: '68%' }}
+                      />
+                    </div>
+                    <p className="text-sm mt-2 opacity-90">現在: 754 pt / 目標: 1000 pt</p>
+                  </div>
+                  <div className="ml-8">
+                    <div className="w-32 h-32 flex items-center justify-center">
+                      {/* ランクアイコン（三角形） */}
+                      <div className="relative">
+                        <svg width="120" height="100" viewBox="0 0 120 100" fill="none">
+                          <polygon points="60,10 110,85 10,85" fill="rgba(34, 197, 94, 0.8)" stroke="white" strokeWidth="2"/>
+                          <polygon points="60,20 100,75 20,75" fill="rgba(34, 197, 94, 0.6)"/>
+                          <polygon points="60,30 90,65 30,65" fill="rgba(34, 197, 94, 0.4)"/>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 統計情報 */}
+              <div className="grid grid-cols-4 gap-6 mb-8">
+                <div className="bg-white p-6 rounded-lg border border-gray-200 text-center">
+                  <div className="text-3xl mb-2">🏆</div>
+                  <p className="text-2xl font-bold text-gray-900">0</p>
+                  <p className="text-sm text-gray-500">完了クエスト</p>
+                </div>
+                <div className="bg-white p-6 rounded-lg border border-gray-200 text-center">
+                  <div className="text-3xl mb-2">🔥</div>
+                  <p className="text-2xl font-bold text-gray-900">0</p>
+                  <p className="text-sm text-gray-500">連続日数</p>
+                </div>
+                <div className="bg-white p-6 rounded-lg border border-gray-200 text-center">
+                  <div className="text-3xl mb-2">⏱️</div>
+                  <p className="text-2xl font-bold text-gray-900">0分</p>
+                  <p className="text-sm text-gray-500">学習時間</p>
+                </div>
+                <div className="bg-white p-6 rounded-lg border border-gray-200 text-center">
+                  <div className="text-3xl mb-2">📈</div>
+                  <p className="text-2xl font-bold text-gray-900">0</p>
+                  <p className="text-sm text-gray-500">ランキング</p>
+                </div>
+              </div>
+
+              {/* ランク履歴 */}
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">ランク履歴</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="w-8 h-8 bg-green-500 rounded flex items-center justify-center text-white font-bold">
+                      1
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">緑色ランク獲得</p>
+                      <p className="text-sm text-gray-500">最初のランクです。学習を開始しましょう！</p>
+                    </div>
+                    <p className="text-sm text-gray-400">今日</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </main>
+        )}
 
-      {/* Add Project Modal */}
-      {showAddProject && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">新しいプロジェクトを追加</h3>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.target as HTMLFormElement);
-              handleAddProject({
-                name: projectName,
-                path: selectedProjectPath,
-                description: formData.get('description') as string,
-              });
-            }}>
-              <div className="space-y-4">
-                {/* Folder Selection */}
+        {activeView === 'roadmap' && (
+          <div className="h-full relative">
+            {/* ヘッダー */}
+            <div className="absolute top-0 left-0 right-0 bg-white border-b border-gray-200 z-10 p-6">
+              <div className="flex items-center justify-between">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">プロジェクトフォルダ</label>
-                  <button
-                    type="button"
-                    onClick={handleSelectFolder}
-                    className="w-full flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-md hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  <h1 className="text-3xl font-bold text-gray-900">技術マップ</h1>
+                  <p className="text-gray-600 mt-1">あなたの学習分野の現在の位置がプロットされます。中心に行けば行くほど、技術力が高いことを示します</p>
+                </div>
+                <button className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors">
+                  <svg
+                    className="w-5 h-5 text-gray-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <svg className="w-5 h-5 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H6a2 2 0 00-2 2z" />
-                    </svg>
-                    {selectedProjectPath ? 'フォルダを変更' : 'フォルダを選択'}
-                  </button>
-                  
-                  {selectedProjectPath && (
-                    <div className="mt-2 p-3 bg-gray-50 rounded-md">
-                      <p className="text-sm text-gray-600 break-all">{selectedProjectPath}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Auto-populated Project Name */}
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">プロジェクト名</label>
-                  <input
-                    type="text"
-                    name="name"
-                    id="name"
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    required
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    placeholder="プロジェクト名を入力..."
-                  />
-                </div>
-
-                {/* Optional Description */}
-                <div>
-                  <label htmlFor="description" className="block text-sm font-medium text-gray-700">説明（任意）</label>
-                  <textarea
-                    name="description"
-                    id="description"
-                    rows={3}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    placeholder="プロジェクトの説明..."
-                  />
-                </div>
-              </div>
-              <div className="mt-6 flex space-x-3">
-                <button
-                  type="submit"
-                  disabled={!selectedProjectPath || !projectName.trim()}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                >
-                  追加
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddProject(false);
-                    setSelectedProjectPath('');
-                    setProjectName('');
-                  }}
-                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                >
-                  キャンセル
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
                 </button>
               </div>
-            </form>
+            </div>
+
+            {/* 3D マップエリア */}
+            <div className="h-full pt-24">
+              <SkillMap3D />
+            </div>
+          </div>
+        )}
+
+        {activeView === 'leaderboard' && (
+          <div className="h-full p-8 flex items-center justify-center">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">成長記録</h2>
+              <p className="text-gray-500">この機能は開発中です</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* プロジェクト追加ダイアログ */}
+      {showAddProjectDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">プロジェクトを追加</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  フォルダパス
+                </label>
+                <input
+                  type="text"
+                  value={selectedPath}
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  プロジェクト名 *
+                </label>
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="プロジェクト名を入力"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  説明（オプション）
+                </label>
+                <textarea
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="プロジェクトの説明"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={handleCancelAddProject}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleConfirmAddProject}
+                disabled={!newProjectName.trim() || isLoading}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+              >
+                {isLoading ? '追加中...' : '追加'}
+              </button>
+            </div>
           </div>
         </div>
       )}
     </div>
-  );
+  )
 }
+
+export default Dashboard
