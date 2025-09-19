@@ -1,6 +1,9 @@
 # Multi-stage build for production efficiency
 FROM node:18-alpine AS builder
 
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl
+
 # Set working directory
 WORKDIR /app
 
@@ -22,12 +25,12 @@ RUN npm run build
 # Production stage
 FROM node:18-alpine AS production
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init and OpenSSL for proper signal handling and Prisma
+RUN apk add --no-cache dumb-init openssl
 
 # Create app user for security
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+    adduser -S nodejs -u 1001
 
 # Set working directory
 WORKDIR /app
@@ -43,11 +46,14 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma ./prisma
 
-# Create uploads directory with proper permissions
-RUN mkdir -p uploads && chown -R nextjs:nodejs uploads
+# Create uploads directory
+RUN mkdir -p uploads
+
+# Change ownership of entire app directory to nodejs user
+RUN chown -R nodejs:nodejs /app
 
 # Switch to non-root user
-USER nextjs
+USER nodejs
 
 # Expose port
 EXPOSE 3000
