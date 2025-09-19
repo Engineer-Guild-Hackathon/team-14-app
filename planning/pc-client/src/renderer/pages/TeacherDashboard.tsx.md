@@ -1,33 +1,75 @@
 # TeacherDashboard.tsx
 
 ## 役割
-教師・メンター専用ダッシュボード
+教師・メンター専用ダッシュボード（teacher.md準拠）
 
 ## コンポーネント構成
-- クラス概要カード（担当クラス数、総生徒数）
-- つまずき中の生徒アラート
-- リアルタイム進捗モニター
-- 個別指導が必要な生徒リスト
-- クラス全体の学習傾向グラフ
+
+### アラートウィジェット
+```typescript
+interface AlertWidget {
+  stuckStudents: StuckStudent[];
+}
+
+interface StuckStudent {
+  studentId: string;
+  studentName: string;
+  questTitle: string;
+  stuckDuration: number; // 分単位
+}
+
+// 機能（teacher.md仕様）
+- 特定のクエストで長時間停滞している生徒を自動でリストアップ
+```
+
+### アクティビティウィジェット
+```typescript
+interface ActivityWidget {
+  recentActivities: RecentActivity[];
+}
+
+interface RecentActivity {
+  studentId: string;
+  studentName: string;
+  activityType: 'quest_completed' | 'login';
+  details: string;
+  timestamp: Date;
+}
+
+// 機能（teacher.md仕様）
+- 最近クエストをクリアした生徒の一覧を表示
+- ログインした生徒の一覧を表示
+```
+
+## State Management
+```typescript
+interface TeacherDashboardState {
+  stuckStudents: StuckStudent[];
+  recentActivities: RecentActivity[];
+  loading: {
+    alerts: boolean;
+    activities: boolean;
+  };
+}
+```
 
 ## 主要な関数
-- `useEffect()` - リアルタイムデータ取得
-- `handleStudentClick()` - 生徒の詳細進捗表示
-- `sendFeedback()` - 個別フィードバック送信
-- `assignQuest()` - 課題配布
-- `exportClassReport()` - クラス成績レポート出力
+```typescript
+// データ取得（teacher.md API準拠）
+const fetchStuckStudents = async () => void;
+const fetchRecentActivities = async () => void;
 
-## State
-- `classrooms: Classroom[]`
-- `studentsInNeed: Student[]` - サポートが必要な生徒
-- `liveProgress: Map<studentId, Progress>` - リアルタイム進捗
-- `classAnalytics: Analytics`
+// ナビゲーション
+const navigateToStudentDetail = (studentId: string) => void;
+const navigateToStudentManagement = () => void;
+const navigateToQuestManagement = () => void;
+```
 
-## リアルタイム機能
-- WebSocketで生徒の学習状況をリアルタイム監視
-- コード変更、エラー、つまずき等を即座に検知
+## UI/UXコンポーネント
+- `AlertWidget` - 停滞生徒アラート表示
+- `ActivityWidget` - 最近の活動表示
+- `StudentCard` - 生徒情報カード
+- `NavigationPanel` - 各画面への遷移
 
 ## 依存関係
-- useTeacher フック
-- StudentProgressCard コンポーネント
-- ClassAnalytics コンポーネント
+- useTeacherDashboard フック
