@@ -40,18 +40,18 @@ const TeacherDashboard: React.FC = () => {
   };
 
   const navigateToStudentDetail = (studentId: string) => {
-    // TODO: Navigate to student detail page
-    console.log('Navigate to student:', studentId);
+    // Navigate to student detail page
+    window.location.hash = `#/teacher/students/${studentId}`;
   };
 
   const navigateToStudentManagement = () => {
-    // TODO: Navigate to student management page
-    console.log('Navigate to student management');
+    // Navigate to student management page
+    window.location.hash = '#/teacher/students';
   };
 
   const navigateToQuestManagement = () => {
-    // TODO: Navigate to quest management page
-    console.log('Navigate to quest management');
+    // Navigate to quest management page
+    window.location.hash = '#/teacher/quests';
   };
 
   if (error) {

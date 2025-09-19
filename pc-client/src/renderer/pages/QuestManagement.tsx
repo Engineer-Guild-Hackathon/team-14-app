@@ -27,7 +27,6 @@ interface Group {
 interface QuestFilters {
   searchQuery: string;
   difficultyFilter: 'all' | 'beginner' | 'intermediate' | 'advanced';
-  statusFilter: 'all' | 'active' | 'completed';
 }
 
 interface AssignmentModal {
@@ -49,8 +48,7 @@ const QuestManagement: React.FC = () => {
   });
   const [filters, setFilters] = useState<QuestFilters>({
     searchQuery: '',
-    difficultyFilter: 'all',
-    statusFilter: 'all'
+    difficultyFilter: 'all'
   });
   const [assignmentModal, setAssignmentModal] = useState<AssignmentModal>({
     selectedQuest: null,
@@ -210,10 +208,8 @@ const QuestManagement: React.FC = () => {
     const matchesSearch = quest.name.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
                          quest.relatedArticle.title.toLowerCase().includes(filters.searchQuery.toLowerCase());
     const matchesDifficulty = filters.difficultyFilter === 'all' || quest.difficulty === filters.difficultyFilter;
-    // Note: statusFilter は実装に必要なデータがteacher.mdにないため、とりあえずtrueにしています
-    const matchesStatus = true;
 
-    return matchesSearch && matchesDifficulty && matchesStatus;
+    return matchesSearch && matchesDifficulty;
   });
 
   const getDifficultyBadge = (difficulty: Quest['difficulty']) => {

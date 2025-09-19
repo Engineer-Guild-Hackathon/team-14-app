@@ -164,7 +164,8 @@ const ClassroomManagement: React.FC = () => {
   };
 
   const navigateToStudentDetail = (studentId: string) => {
-    console.log('Navigate to student detail:', studentId);
+    // Navigate to student detail page
+    window.location.hash = `#/teacher/students/${studentId}`;
   };
 
   const filteredAndSortedStudents = students
