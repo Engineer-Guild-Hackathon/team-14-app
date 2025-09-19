@@ -46,6 +46,9 @@ COPY --from=builder /app/prisma ./prisma
 # Create uploads directory with proper permissions
 RUN mkdir -p uploads && chown -R nextjs:nodejs uploads
 
+# Change ownership of the app directory to the app user
+RUN chown -R nextjs:nodejs /app
+
 # Switch to non-root user
 USER nextjs
 
