@@ -13,5 +13,5 @@
 ---
 
 ## デモ　/ プレゼン資料
-- デモURL: ReleaseのtagからPCクライアントアプリをダウンロードして下さい
+- デモURL: [googleドライブからdmgファイルをダウンロードして下さい](https://drive.google.com/file/d/1GSuuIL52QkQiI32GqlROkfoQgVTtQ7U0/view?usp=sharing)
 - プレゼンURL：https://www.canva.com/design/DAGyxKQn70c/mm4VxgtxQ8L1v6LVfdg3NA/edit
